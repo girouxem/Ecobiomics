@@ -1,0 +1,449 @@
+---
+title: "COI Sample Processing Using DADA2"
+author: "Emily Giroux"
+date: "4/4/2019"
+output: pdf_document
+fontsize: 11pt
+geometry: margin=1in
+urlcolor: blue
+header-includes: \usepackage{xcolor}
+---
+
+```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
+#Set the global options for knitr
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy = TRUE, fig.align='center',
+               cache=FALSE, collapse=TRUE, echo=FALSE, eval=FALSE, include=FALSE,
+               message=FALSE, quietly=TRUE, results='hide', warn.conflicts=FALSE, 
+               warning=FALSE)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+```
+
+```{r, installation1, eval=TRUE, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
+#Installing required packages
+r = getOption("repos")
+r["CRAN"] = "http://cran.us.r-project.org"
+options(repos = r)
+install.packages("knitr")
+install.packages("rprojroot")
+install.packages("data.table")
+install.packages("kableExtra")
+install.packages("cowplot")
+install.packages("filesstrings")
+if(!require(devtools)) install.packages("devtools")
+devtools::install_github("kassambara/fastqcr")
+source("http://bioconductor.org/biocLite.R")
+biocLite("BiocStyle")
+
+library("BiocStyle")
+.cran_packages <- c("ggplot2", "gridExtra")
+.bioc_packages <- c("dada2", "phyloseq", "DECIPHER", "phangorn")
+.inst <- .cran_packages %in% installed.packages()
+if(any(!.inst)) {
+   install.packages(.cran_packages[!.inst])
+}
+.inst <- .bioc_packages %in% installed.packages()
+if(any(!.inst)) {
+   source("http://bioconductor.org/biocLite.R")
+   biocLite(.bioc_packages[!.inst], ask = F)
+}
+sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
+```
+
+```{r sourcing_my_functions, echo=FALSE, eval=TRUE, include=FALSE, cache=TRUE}
+#Source our custom R scripts:    
+#For this we will use the rprojroot package to set the directory structures. This will help us when finding our files to source functions. We specify ours is an RStudio project. The root object contains a function that will help us locate our package R files regarless of our current working directory.
+library(rprojroot)
+root <- rprojroot::is_rstudio_project
+scriptsPath <- root$make_fix_file(".")("R")
+scripts  <- dir(root$find_file("R", path = root$find_file()))
+scriptsl <- paste(scriptsPath, scripts, sep = "//")
+lapply(scriptsl, source)
+# Record the path to the environment images directory:
+sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
+analysis <- "ecobiomics/"
+sharedPathAn <- paste(sharedPath, analysis, sep = "")
+imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
+thisImage <- "ecobiomics_StartUp.RData"
+chptImage <- "ecobiomics_COI.RData"
+save.image(paste(imageDirPath, chptImage, sep = ""))
+load(paste(imageDirPath, chptImage, sep = ""))
+```
+
+
+**Load the saved image from Chapter 1**, then save it as a separate image to retain environment data specific to the COI processing and analysis workflow.
+```{r, loadBaseImage, echo=TRUE, eval=FALSE, include=TRUE, results='hold'}
+load(paste(imageDirPath, thisImage, sep = ""))
+chptImage <- "ecobiomics_COI.RData"
+save.image(paste(imageDirPath, chptImage, sep = ""))
+```
+
+**Create a variable shortcut to the region-specific analysis directory:**    
+In this chapter, we are working with the COI amplicon samples, so the COI directory within our main project directory will contain all the region-specific output.
+```{r, setRegDir, echo=TRUE, eval=FALSE, include=TRUE, cache=TRUE}
+region <- "COI"
+sharedPathReg <- paste(sharedPathAn, region, "_analysis/", sep = "")
+
+# Make the region-specific metadatable for this chapter the main metadata table:
+metadataRegion <- metadataCOI
+```
+
+**Sample processing follows the steps outlined in Chapter 1**    
+    
+1. ggPlotRaw COI:
+```{r ggPlotRaw, eval=TRUE, include=TRUE, echo=TRUE, fig.show='hold', message=FALSE, tidy=FALSE, linewidth=60, cache=TRUE}
+library(ggplot2)
+plotRawQFwd <- plotQualityProfile(paste(metadataRegion$rawFastqPath[1:2], metadataRegion$rawR1[1:2], sep = "")) +
+  ggtitle("Quality Plot of Unprocessed Forward Reads for the 1st two Samples") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+plotRawQRev <- plotQualityProfile(paste(metadataRegion$rawFastqPath[1:2], metadataRegion$rawR2[1:2], sep = "")) +
+  ggtitle("Quality Plot of Unprocessed Reverse Reads for the 1st two Samples") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+library(cowplot)
+plot_grid(plotRawQFwd, plotRawQRev, nrow = 2)
+```
+
+**Checking for Adapter Sequences**     
+We're going to use Cutadapt to detect and trim off COI-specific adapter sequences. Cutadapt uses Biostrings, which only recognises the main IUPAC codes. We need to replace any extended IUPAC nucleic acid ambiguity codes to the primary codes. In our COI primers we see the following ambiguiity codes:           
+R is for A or G     
+Y is for C or T     
+I is from the extended IUPAC codes, and gives a probability order for C, T or G. The closest resemblance to the main IUPAC for I is B.     
+     
+     
+No changes are required for the forward or reverse primers as there are no extended ambiguity codes in the primer sequences:    
+**COI F230:**      
+     
+>\textcolor{blue}{5'} GGTCAACAAATCATAAAGATATTGG \textcolor{blue}{3'}           
+
+
+**COI F230R_modN:**     
+      
+>\textcolor{blue}{5'} CTTATRTTRTTTATNCGNGGRAANGC \textcolor{blue}{3'}          
+     
+     
+2. Cutadapt. We are replacing the code for SeqPrep with the use of cutadapt and workflow developed by Benjamin Callahan. See page: https://benjjneb.github.io/dada2/ITS_workflow.html      
+      
+Capture your forward and reverse COI primers:
+```{r, recordPrimers, echo=TRUE, eval=TRUE, include=TRUE, tidy=FALSE, linewidth=80}
+fwdPrimer <- "GGTCAACAAATCATAAAGATATTGG"
+revPrimer <- "CTTATRTTRTTTATNCGNGGRAANGC"
+```
+
+Create the custom `AllOrients' function for primer sequences for all possible orientations. This function was created by Benjamin Callahan for the ITS-specific workflow. See: https://benjjneb.github.io/dada2/ITS_workflow.html      
+```{r, mkAllOrientsFn, echo=TRUE, eval=TRUE, include=TRUE, tidy=FALSE, linewidth=80}
+AllOrients   <- function(primer) {
+     require(Biostrings)
+     dna     <- DNAString(primer)
+     orients <- c(Forward    = dna, 
+                  Complement = Biostrings::complement(dna), 
+                  Reverse    = reverse(dna), 
+                  RevComp    = reverseComplement(dna))
+    return(sapply(orients, toString))
+}
+```
+
+We can now use the custom AllOrients function to generate the primer sequences in all possible orientations in which they may be found:
+```{r, runAllOrientsFn, echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, cache=TRUE, comment=NA}
+fwdOrients <- AllOrients(fwdPrimer)
+revOrients <- AllOrients(revPrimer)
+fwdOrients
+```
+Create the custom `PrimerHits' function for checking our sequences for all orientations of primer sequences as generated above using the AllOrients function. This function generates a table of counts of the number of reads in which the primer is found. This function was created by Benjamin Callahan for the ITS-specific workflow. See: https://benjjneb.github.io/dada2/ITS_workflow.html
+```{r, mkPrimerHitsFn, echo=TRUE, eval=TRUE, include=TRUE, tidy=FALSE, linewidth=80}
+PrimerHits <- function(primer, fn) {
+    nhits  <- vcountPattern(primer, sread(readFastq(fn)), fixed = FALSE)
+    return(sum(nhits > 0))
+}
+```
+
+Before checking our COI sequences for primers with cutadapt, we need to remove those sequences with ambiguous bases. Ambiguous bases (Ns) in the sequencing reads makes accurate mapping of short primer sequences difficult, so we "pre-filter" these sequences so that we only remove those with Ns and perform no other fitlering.
+```{r, filterNsfqs, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, linewidth=80}
+library(dada2)
+# Path to the processed fastq file directory:
+processedFastq <- paste(sharedPathReg, "processedFQ", sep = "")
+if(!dir.exists(processedFastq)) dir.create(processedFastq)
+
+# Path to fastq filtered for ambiguous bases (Ns):
+filtNsPath <- file.path(processedFastq, "A_removedAmbiguous")
+if(!dir.exists(filtNsPath)) dir.create(filtNsPath)
+
+# Define path and file names:
+fwd   <- paste(metadataRegion$rawFastqPath, metadataRegion$rawR1, sep = "")
+filtF <- file.path(filtNsPath, paste(metadataRegion$LibraryName, "_F.fastq.gz", sep = ""))
+rev   <- paste(metadataRegion$rawFastqPath, metadataRegion$rawR2, sep = "")
+filtR <- file.path(filtNsPath, paste(metadataRegion$LibraryName, "_R.fastq.gz", sep = ""))
+
+# Run DADA2's filterAndTrim function to remove sequences with ambiguous bases:
+filterAndTrim(fwd, filtF, rev, filtR, 
+              maxN = 0, multithread = TRUE, verbose = TRUE)
+```
+
+We can now check the N-filtered sequences of just one sample set for primer hits:
+```{r, cntPrimerHits, echo=TRUE, eval=TRUE, tidy=FALSE, cache=TRUE, message=FALSE, warning=FALSE, comment=NA}
+library("ShortRead")
+rbind(FWD.ForwardReads = sapply(fwdOrients, PrimerHits, fn = filtF[1]),
+      FWD.ReverseReads = sapply(fwdOrients, PrimerHits, fn = filtR[1]), 
+      REV.ForwardReads = sapply(revOrients, PrimerHits, fn = filtF[1]), 
+      REV.ReverseReads = sapply(revOrients, PrimerHits, fn = filtR[1]))
+```
+As Expected, the vast majority of forward primer is found in its forward orientation, and in some of the reverse reads in its reverse-complement orientation (due to occasional read-through). Similarly, the reverse primer is found with its expected orientations. There are some where the primers appear in incorrect orientations and I need to better understand this.   
+     
+Set up the paths and fastq file input and output names in preparation for running cutadapt. 
+\textbf{Note:} You may need to install cutadapt locally if it is not installed system wide. I chose to use conda to install it locally:
+```{r, preCutadapt, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, linewidth=80}
+cutadapt <- "/home/CFIA-ACIA/girouxeml/prog/anaconda3/envs/bio/bin/cutadapt"
+```
+
+We can use the `system2` call to run shell commands directly from R
+```{r, preCutadapt2, echo=TRUE, eval=TRUE, include=TRUE, tidy=FALSE, linewidth=80}
+system2(cutadapt, args = "--help")
+```
+
+Create a directory for the cutadapted fastq files, only if it doesn't already exist. Also create the output filenames for the cutadapt-ed fastq files.
+```{r, preCutadapt3, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, linewidth=80}
+cutAdaptDir <- file.path(processedFastq, "B_cutadapt", sep = "")
+if(!dir.exists(cutAdaptDir)) dir.create(cutAdaptDir)
+
+cutFqs <- paste(cutAdaptDir, metadataRegion$LibraryName, "_Fcut.fastq.gz", sep = "")
+cutRqs <- paste(cutAdaptDir, metadataRegion$LibraryName, "_Rcut.fastq.gz", sep = "")
+```
+Now we can proceed to using cutadapt to remove primer sequences at the ends of our reads.     
+We'll use dada2:::rc()      
+     
+An aside:  The ::: is one of 2 possible namespace operators in R. This triple-colon operator acts like a double-colon operator (which selects definitions from a particular namespace), AND allows access to hidden objects. In this command, we are specifying that we want to use the `rc` function that is from the dada2 package, not the `rc` function that may also exist in base R or other packages we possibly loaded. See this page for more on namespace operators in R: http://r-pkgs.had.co.nz/namespace.html      
+     
+In the following, we use dada2:::rc to get the reverse complement of the primer sequences. The idea is that it can be used to compare each sequence and its reverse complement to a reference sequence(s) in the right orientation, and then choose the orientation that minimizes that distance. See page: https://github.com/benjjneb/dada2/issues/451       
+      
+         
+Cutadapt flag parameter explanations:    
+    
+Parameter | Definition
+--------- | -------------------------------------------------------------
+**-g:** | Regular 5' adapter/primer sequence on forward reads
+**-a:** | Regular 3' adapter/primer sequence on forward reads
+**-G:** | Regular 5' adapter/primer sequence on reverse reads
+**-A:** | Regular 3' adapter/primer sequence on reverse reads
+**-p:** | Specify paired-end sequencing reads
+**-o:** | Specify output files
+**-n:** | Number of times to trim when more than one adapter is present in a read
+     
+Documentation for fine-tuning use of cutadapt is available at: https://cutadapt.readthedocs.io/en/v1.7.1/guide.html 
+```{r, cutadapt, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, linewidth=80}
+fwdPrimerRC <- dada2:::rc(fwdPrimer)
+revPrimerRC <- dada2:::rc(revPrimer)
+# Trim fwdPrimer and the reverse-complement of the revPrimer off forward reads:
+fwdFlags <- paste("-g", fwdPrimer, "-a", revPrimerRC)
+# Trim revPrimer and the reverse-complement of the fwdPrimer off reverse reads:
+revFlags <- paste("-G", revPrimer, "-A", fwdPrimerRC)
+# Run Cutadapt
+for(i in seq_along(metadataRegion$LibraryName)) {
+  system2(cutadapt, args = c(fwdFlags, revFlags, "-n", 2,
+                             "-o", cutFqs[i], "-p", cutRqs[i],
+                             filtF[i], filtR[i]))
+}
+```
+\pagebreak
+\textbf{Note:} There is a lot of output generated to the console when running cutadapt. One warning we may see often is about detection of incomplete adapter sequences:     
+     
+> `WARNING:`     
+>     
+> `One or more of your adapter sequences may be incomplete.`     
+> `Please see the detailed output above.`    
+     
+Because our DNA fragments are generated from amplicon sequences and are not random, we can ignore this warning.     
+     
+As a sanity check, we will count the presence of primers in the first cutadapt-ed sample:
+```{r, cntPrimerHits2, echo=-1, eval=TRUE, include=TRUE, tidy=FALSE, linewidth=80, cache=TRUE, comment=NA}
+library("ShortRead")
+rbind(FWD.ForwardReads = sapply(fwdOrients, PrimerHits, fn = cutFqs[1]),
+      FWD.ReverseReads = sapply(fwdOrients, PrimerHits, fn = cutRqs[1]), 
+      REV.ForwardReads = sapply(revOrients, PrimerHits, fn = cutFqs[1]), 
+      REV.ReverseReads = sapply(revOrients, PrimerHits, fn = cutRqs[1]))
+```
+3. filterAndTrimming. Raw read processing.          
+If we're going to spend anytime optimizing steps during procesing, it should be on filterring and trimming. Likewise, while we may see a big loss of reads in this step, outside of this step we should see no major loss of reads.     
+      
+Reads less than 60 bp in length will never overlap for this region and are most likely junk reads, so we will be filtering these reads out.        
+We can use the quality plots of the raw reads to guide our trimming and filtering approach. In the plots previously generated we saw that the quality of the forwards reads was much higher than the reverse reads, which is to be expected for Illumina data.  Forward read quality was relatively adequate throughout read length. Reverse read quality dropped off much sooner, with much lower quality after the 180-200 bp mark.  We have the option to truncate our reads in this step, but we need to keep in mind our expected amplicon length for successful merging later on, which depends on a 20-bp overlap between forward and reverse reads.   
+We combine these trimming parameters with standard filtering parameters, the most important being the enforcement of a maximum of 2 expected errors per-read (Edgar and Flyvbjerg 2015). Trimming and filtering is performed on paired reads jointly, i.e. both reads must pass the filter for the pair to pass.     
+When filtering - even if I remove the option to discard reads with >2 error rate, I may still lose samples where no reads remain after filtering. Given the importance stressed by the referenced paper by Edgar and Flyvbjerg 2015 for filtering reads with higher error rates, I kept it, but increased the allowed errors to 3 per read, instead of 2.  We need to accept that some samples will be lost due to poor sequencing data. We will need to update the metadata table so that the lost sets are removed in a later step.     
+
+As in the standard 16S workflow, it is generally possible to remove primers (when included on the reads) via the trimLeft parameter as they only appear at the start of the reads and have a fixed length.      
+```{r, filterAndTrimming, echo=TRUE, eval=FALSE, tidy=FALSE, linewidth=80, cache=TRUE}
+# Path to the final processed fastq file directory:
+filtPathFinal <- file.path(processedFastq, "C_finalProcessed")
+if(!dir.exists(filtPathFinal)) dir.create(filtPathFinal)
+
+# Create output filenames for the final filtered and trimmed fastq files:
+filtFwd <- paste(filtPathFinal, "/", metadataRegion$LibraryName, "_F_filt.fastq.gz", sep = "")
+filtRev <- paste(filtPathFinal, "/",metadataRegion$LibraryName, "_R_filt.fastq.gz", sep = "")
+```
+
+For this dataset, we will use standard filtering paraments: maxN=0 (DADA2 requires sequences contain no Ns), truncQ = 2,  rm.phix = TRUE and maxEE=2. The maxEE parameter sets the maximum number of “expected errors” allowed in a read, which is a better filter than simply averaging quality scores.     
+      
+Run filterAndTrim using cutadapt-ed fastq files as input:      
+```{r, filterAndTrimming2, echo=TRUE, eval=FALSE, tidy=FALSE, linewidth=80, cache=TRUE}
+trimOut <- filterAndTrim(cutFqs, filtFwd, cutRqs, filtRev,
+                         maxN = 0, maxEE = c(3,3), truncQ = 2, 
+                         rm.phix = TRUE, compress = TRUE,
+                         matchIDs = TRUE, multithread = TRUE, verbose = TRUE)
+```
+\pagebreak
+Save the workspace image right after this step so it doesn't have to be repeated if R accidentally shuts down:
+```{r, saveImage2, eval=FALSE, echo=TRUE}
+save.image(paste(imageDirPath, chptImage, sep = ""))
+```
+
+Trimming and filtering parameters explanations:    
+    
+Parameter | Definition
+--------- | -------------------------------------------------------------
+**minLen:** | Remove reads with length less than minLen. minLen is enforced after trimming and truncation.
+**minQ:** | After truncation, reads that contain a quality score less than minQ will be discarded.
+**truncQ:** | Truncate reads at the first instance of a quality score less than or equal to truncQ.
+**maxN:** | After truncation, sequences with more than maxN Ns will be discarded.
+**maxEE:** | After truncation, reads with higher than maxEE "expected errors" will be discarded. Expected errors are calculated from the nominal definition of the quality score: EE = sum(10^(-Q/10))
+**rm.phix:** | If TRUE, discard reads that match against the phiX genome.
+**matchIDs:** | Whether to enforce matching between the id-line sequence identifiers of the forward and reverse fastq files. If TRUE, only paired reads that share id fields are output.
+**compress:** | Ouput fastq files are gzipped.
+**multithread:** | If TRUE, input files are filtered in parallel via mclapply.
+**verbose:** | Whether to output status messages.
+     
+For the full list of available parameters and permitted parameter values see the `filterAndTrim` function in the DADA2 manual page:        
+https://rdrr.io/bioc/dada2/man/filterAndTrim.html      
+     
+4. ggPlotsProcessed. Let's look at the quality plots of our filtered and processed reads for our first 2 samples to see the effects of our trimming parameters:
+```{r, ggPlotsProcessed, eval=TRUE, include=TRUE, echo=TRUE, fig.show='hold', message=FALSE, tidy=FALSE, linewidth=80, cache=TRUE}
+library(ggplot2)
+plotQfwd <- plotQualityProfile(paste(filtPathFinal, "/", metadataRegion$LibraryName[1:2], 
+                                     "_F_filt.fastq.gz", sep = "")) +
+  ggtitle("Quality Plot of Processed Forward Reads for the 1st two Samples") +
+  theme(plot.title = element_text(hjust = 0.5))
+plotQrev <- plotQualityProfile(paste(filtPathFinal, "/", metadataRegion$LibraryName[1:2],
+                                     "_R_filt.fastq.gz", sep = "")) +
+  ggtitle("Quality Plot of Processed Reverse Reads for the 1st two Samples") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+library(cowplot)
+plot_grid(plotQfwd, plotQrev, nrow = 2)
+```
+5. keepTrimmed. Update metadata so that samples that did not have any reads that passed filtering are removed from further analysis, to avoid downstream processing errors.   
+    
+We can take a brief look at the summary or reads in and out for the first 6 samples:
+```{r, preKeepTrimmed, eval=TRUE, include=TRUE, echo=TRUE, cache=TRUE, comment=NA}
+head(trimOut)
+```
+The row names we see have retained the fastq file name of the input forward reads, yet the output sums are for both forward and reverse reads. Let's remove the file suffix so that the rownames will apply to both forward and reverse reads.
+```{r, updateRows, include=TRUE, echo=TRUE, eval=FALSE, cache=TRUE}
+rownames(trimOut) <- gsub("_Fcut.fastq.gz", "", rownames(trimOut))
+```
+
+As a precaution, we still check for samples with no remaining reads and update the metadata table for our COI samples using those results. If you receive an error during the dereplication step later on: `Error in open.connection(con, "rb") : cannot open the connection`,
+you need to update the files so that those that didn't pass filtering aren't attempted. See issue at:    
+https://github.com/benjjneb/dada2/issues/375    
+```{r, keepsTrimmed, include=TRUE, echo=TRUE, eval=FALSE, cache=TRUE, tidy=FALSE}
+keepTrim <- trimOut[,"reads.out"] > 20 # Or other cutoff
+
+filtFs <- file.path(filtPathFinal, paste(metadataRegion$LibraryName, "_F_filt.fastq.gz", sep = ""))[keepTrim]
+filtRs <- file.path(filtPathFinal, paste(metadataRegion$LibraryName, "_R_filt.fastq.gz", sep = ""))[keepTrim]
+
+filtNames <- basename(filtFs)[keepTrim]
+filtNames <- gsub("_F_filt.fastq.gz", "", filtNames)
+```
+
+Run the `keepTrimmed2` chunk. We've updated our list of fastq file names, but we also need to update our metadata table so that rows that had read pairs where a direction no longer had reads after filtering are removed from the metadata table.    
+\textbf{Note:} With `data.table` and `keys` look-up, `.()` is an alias to `list()`, which is the `filtNames` we set in the previous chunk.
+```{r, keepTrimmed2, include=TRUE, echo=TRUE, eval=FALSE, message=FALSE, cache=TRUE, tidy=FALSE}
+library(data.table)
+setkey(metadataRegion, LibraryName)
+metadatafilt <- metadataRegion[.(filtNames)] 
+metadatafilt$filtFwd <- paste(filtPathFinal, "/", metadatafilt$LibraryName, 
+                              "_F_filt.fastq.gz", sep = "")
+metadatafilt$filtRev <- paste(filtPathFinal, "/", metadatafilt$LibraryName,
+                              "_R_filt.fastq.gz", sep = "")
+```
+
+6. splitRunsMetadata. No need for this step since all COI sequencing libraries were sequenced on the same run.
+```{r, splitRunsMetadata, include=TRUE, echo=TRUE, eval=FALSE, message=FALSE, cache=TRUE}
+library(data.table)
+setkey(metadatafilt, "SeqPlate")
+run <- unique(metadatafilt$SeqPlate)
+metadatafiltPlate1 <- metadatafilt[run]
+```
+
+7. Error learning.     
+Here we begin the first DADA2-specific processing step - error-learning.  We'll start error-learning with our first set of COI samples, those that were sequenced on our first sequencing run. We'll continue right through all of Step 8 which runs the depreplication, DADA2, and merging for this set, and then do the same for the samples that were sequenced on the other run. Once complete, we'll merge the results together into a single table. For earror-learning I set randomize to TRUE, otherwise it takes the samples in the order they are in the metadata list, until the number of bases are reached, meaning that error will never take into account those generated by specific amplicons that may come later in longer lists.   
+*Note:* In the case where we have low numbers of merged read pairs compared to processed unmerged sequences, it is suggested to increase `maxMismatch` value during the `mergePairs` step https://github.com/benjjneb/dada2/issues/648.    
+    
+**Plate 1:**      
+     
+- Collect the set of filtered fastq files into a list:
+```{r, errorLearningPool1, echo=TRUE, eval=FALSE, linewidth=60, cache=TRUE}
+filtFs <- metadatafiltPlate1$filtFwd
+filtRs <- metadatafiltPlate1$filtRev
+```
+- Extract the names of the fastq files, and compare to ensure there are files for both forward and reverse reads. Once this is confirmed, assign the forward and reverse fastq file pairs the same sample name, using the forward reads as sample name template:
+```{r, valNames, echo=TRUE, eval=FALSE, linewidth=60, cache=TRUE, tidy=FALSE}
+sampleNamesF <- sapply(strsplit(basename(filtFs), "_F_filt.fastq.gz"), `[`, 1) 
+sampleNamesR <- sapply(strsplit(basename(filtRs), "_R_filt.fastq.gz"), `[`, 1)
+
+if(!identical(sampleNamesF, sampleNamesR)) 
+  stop ("Forward and reverse files do not match.")
+
+sampleNames <- sampleNamesF
+names(filtFs) <- sampleNames
+names(filtRs) <- sampleNames
+```
+- Set Rs random number generator:
+```{r, randSeed, echo=TRUE, eval=FALSE, linewidth=60, cache=TRUE}
+set.seed(100)
+```
+- Learn forward and reverse error rates:
+```{r, pool1Error, echo=TRUE, eval=FALSE, linewidth=60, cache=TRUE, tidy=FALSE}
+# Learn forward errors:
+errF <- learnErrors(filtFs, nbases=1e8, randomize = TRUE,
+                    multithread=TRUE, verbose = TRUE)
+# Learn reverse errors:
+errR <- learnErrors(filtRs, nbases=1e8, randomize = TRUE,
+                    multithread=TRUE, verbose = TRUE)
+```
+\pagebreak
+Save the workspace image right after this step so it doesn't have to be repeated if R accidentally shuts down:
+```{r, saveImage3, eval=FALSE, echo=-2}
+save.image(paste(imageDirPath, chptImage, sep = ""))
+load(paste(imageDirPath, chptImage, sep = ""))
+```
+
+- Sample inference and merging of paired-end reads:
+```{r, drepDadaMergePool1, eval=FALSE, echo=-6, include=TRUE, cache=TRUE, message=FALSE}
+mergers <- vector("list", length(sampleNames))
+names(mergers) <- sampleNames
+
+for(sam in sampleNames) {
+  cat("Processing:", sam, "\n")
+    derepF <- derepFastq(filtFs[[sam]])
+    ddF <- dada(derepF, err=errF, multithread=TRUE, verbose = TRUE)
+    derepR <- derepFastq(filtRs[[sam]])
+    ddR <- dada(derepR, err=errR, multithread=TRUE, verbose = TRUE)
+    merger <- mergePairs(ddF, derepF, ddR, derepR, maxMismatch = 1, verbose = TRUE)
+    mergers[[sam]] <- merger
+}
+rm(derepF); rm(derepR)
+
+# Construct sequence table and remove chimeras
+seqtab <- makeSequenceTable(mergers)
+saveRDS(seqtab, paste(sharedPathAn, region, "COI_plate1_seqtab.rds", sep = ""))
+save.image(paste(imageDirPath, chptImage, sep = ""))
+```

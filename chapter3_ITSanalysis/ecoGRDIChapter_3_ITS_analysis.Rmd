@@ -1,0 +1,434 @@
+---
+title: 'Chapter 3: ITS data analysis using the R package PhyloSeq'
+author: "Emily Giroux"
+date: "4/17/2019"
+output: pdf_document
+fontsize: 11pt
+geometry: margin=1in
+urlcolor: blue
+header-includes: \usepackage{xcolor}
+---
+
+```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
+#Set the global options for knitr
+library("knitr")
+opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy = TRUE, fig.align='center',
+               cache=FALSE, collapse=TRUE, echo=FALSE, eval=FALSE, include=FALSE,
+               message=FALSE, quietly=TRUE, results='hide', warn.conflicts=FALSE, 
+               warning=FALSE)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+```
+
+```{r, installation1, eval=TRUE, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
+#Installing required packages
+r = getOption("repos")
+r["CRAN"] = "http://cran.us.r-project.org"
+options(repos = r)
+
+if(!require(devtools)) install.packages("devtools")
+devtools::install_github("kassambara/fastqcr")
+
+if (!requireNamespace("BiocManager"))
+    install.packages("BiocManager")
+BiocManager::install()
+
+library("BiocManager")
+.cran_packages <- c("ggplot2", "gridExtra", "rprojroot", "data.table", 
+                    "knitr", "kableExtra", "cowplot", "filesstrings")
+.bioc_packages <- c("BiocStyle", "dada2", "phyloseq", "DECIPHER", "phangorn")
+.inst <- .cran_packages %in% installed.packages()
+if(any(!.inst)) {
+   install.packages(.cran_packages[!.inst])
+}
+.inst <- .bioc_packages %in% installed.packages()
+if(any(!.inst)) {
+  BiocManager::install(.bioc_packages[!.inst], ask = FALSE)
+}
+sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
+```
+
+```{r sourcing_my_functions, echo=FALSE, eval=FALSE, include=FALSE, cache=TRUE}
+#Source our custom R scripts:    
+#For this we will use the rprojroot package to set the directory structures. This will help us when finding our files to source functions. We specify ours is an RStudio project. The root object contains a function that will help us locate our package R files regarless of our current working directory.
+library("rprojroot")
+root <- rprojroot::is_rstudio_project
+scriptsPath <- root$make_fix_file(".")("R")
+scripts  <- dir(root$find_file("R", path = root$find_file()))
+scriptsl <- paste(scriptsPath, scripts, sep = "//")
+lapply(scriptsl, source)
+# Record the path to the environment images directory:
+sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
+analysis <- "ecobiomics/"
+sharedPathAn <- paste(sharedPath, analysis, sep = "")
+imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
+baseImage    <- "ecobiomics_StartUp.RData" # Loads Chapter 1 image
+chptImageA <- "ecobiomics_ITS.RData"
+chptImageB <- "ecobiomics_ITS_2b.RData"
+load(paste(imageDirPath, chptImageA, sep = ""))
+load(paste(imageDirPath, chptImageB, sep = ""))
+```
+    
+**Load the relevant images**, then save this chapter's image as a separate image to retain environment data specific to the ITS processing and analysis workflow.
+```{r, loadBaseImage, echo=TRUE, eval=FALSE, include=TRUE, results='hold', tidy=FALSE, message=FALSE}
+# Set the name for this chapter's image:
+chptImage    <- "ecobiomics_ITS_analysis.RData" 
+
+# Save this chapter's image:
+save.image(paste(imageDirPath, chptImage, sep = ""))
+```
+When re-starting a session, you can quickly load up the image by running the chunk below:
+```{r, quickImageLoad, echo=TRUE, eval=TRUE, include=TRUE, results='hold'}
+sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
+analysis <- "ecobiomics/"
+sharedPathAn <- paste(sharedPath, analysis, sep = "")
+imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
+chptImageB <- "ecobiomics_ITS_2b.RData"
+load(paste(imageDirPath, "slim_", chptImageB, sep = ""))
+chptImage    <- "ecobiomics_ITS_analysis.RData" 
+save.image(paste(imageDirPath, chptImage, sep = ""))
+```
+
+Let's get familiar with our phyloseq object created at the end of our sequencing sample processing chapter:     
+Below I am using the ps, rather than phySeq objects. Recall from the last chunks of Chapter 2, the phySeq object is a phyloseq object without the fitGTR$tree info, while the ps object was created leveraging the fitGTR$tree information. The phySeq object can be used instead of the ps object if the optim.pml command wasn't run.
+```{r, testCmds, eval=FALSE, include=FALSE, echo=TRUE, message=FALSE}
+library("phyloseq")
+rank_names(ps)
+table(tax_table(ps)[, "Species"], exclude = NULL)
+```
+Here is if we filter based on having to know the species:
+```{r, testCmds2, eval=FALSE, include=FALSE, echo=-5, message=FALSE, comment=NA}
+library("phyloseq")
+ps <- subset_taxa(ps, !is.na(Species) & !Species %in% c("", "uncharacterized"))
+rank_names(ps)
+table(tax_table(ps)[, "Species"], exclude = NULL)
+save.image(paste(imageDirPath, chptImage, sep = ""))
+```
+
+```{r, taxTblPS, eval=TRUE, echo=-1, cache=TRUE, message=FALSE, warning=FALSE, comment=NA}
+load("/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/slim_ecobiomics_ITS_2b.RData")
+library("phyloseq")
+# table(tax_table(ps)[, "Genus"], exclude = NULL)
+t <- table(tax_table(ps)[, "Genus"], exclude = NULL)
+# head(t[order(-t)])
+t[order(-t)][2:10]
+```
+
+Visualize alpha-diversity, phylum:
+```{r, aDiv1, eval=TRUE, include=TRUE, echo=TRUE, cache=TRUE, message=FALSE}
+library("phyloseq")
+library("ggplot2")
+library("cowplot")
+plot_richness(ps, 
+              x = "ExtractionKit", 
+              measures = c("Shannon", "Simpson"), 
+              color = "Sample") +
+                theme(axis.text.x = element_text(angle = 90)) +
+  scale_x_discrete(name = "Extraction Kit")
+```
+
+Prevalence evaluation for species:
+```{r, prevTblSpp, echo=TRUE, eval=TRUE, cache=TRUE, results='hold', include=TRUE, tidy=FALSE, message=FALSE, comment=NA}
+library("phyloseq")
+prevDf <- apply(X = otu_table(ps),
+                MARGIN = ifelse(taxa_are_rows(ps), 
+                                yes = 1, no = 2),
+                FUN = function(x){sum(x>0)})
+
+prevDf <- data.frame(Prevalence = prevDf,
+                     TotalAbundance = taxa_sums(ps),
+                     tax_table(ps))
+
+prevalenceTblSpp <- plyr::ddply(prevDf, "Species", 
+                                function(df1){
+                                  cbind(mean(df1$Prevalence),
+                                        sum(df1$Prevalence))})
+colnames(prevalenceTblSpp) <- c("Species", "Mean", "Sum")
+head(prevalenceTblSpp)
+head(prevalenceTblSpp[order(-prevalenceTblSpp[,3]),])
+```
+
+Prevalence evaluation for phyla:
+```{r, prevTblPhyla, echo=TRUE, eval=TRUE, cache=TRUE, include=TRUE, results='hold', tidy=FALSE, message=FALSE, comment=NA}
+library("phyloseq")
+prevDf <- apply(X = otu_table(ps),
+                MARGIN = ifelse(taxa_are_rows(ps), 
+                                yes = 1, no = 2),
+                FUN = function(x){sum(x>0)})
+
+prevDf <- data.frame(Prevalence = prevDf,
+                     TotalAbundance = taxa_sums(ps),
+                     tax_table(ps))
+
+prevalenceTblPhyla <- plyr::ddply(prevDf, "Phylum", 
+                                  function(df1){
+                                    cbind(mean(df1$Prevalence),
+                                          sum(df1$Prevalence))})
+colnames(prevalenceTblPhyla) <- c("Phylum", "Mean", "Sum")
+prevalenceTblPhyla[order(-prevalenceTblPhyla[,3]),]
+```
+
+From the above calculations, there are a few low-abundance Phylas that appear in less than 10 samples:    
+Aphelidiomycota     
+Basidiobolomycota     
+Blastocladiomycota     
+Kickxellomycota     
+Monoblepharomycota      
+Olpidiomycota      
+Rozellomycota     
+     
+Filter entries with unidentified Phylum, or those phyla that appear in less than 10 samples:
+```{r, filterLowPhyla, echo=TRUE, include=TRUE, eval=TRUE, tidy=FALSE, cache=TRUE, results='hold', message=FALSE, comment=NA}
+library("phyloseq")
+phylas <- subset(prevalenceTblPhyla, prevalenceTblPhyla$Sum < 10)
+ps1    <- subset_taxa(ps, !Phylum %in% phylas$Phylum)
+rank_names(ps1)
+head(table(tax_table(ps1)[, "Phylum"], exclude = NULL))
+head(table(tax_table(ps1)[, "Species"], exclude = NULL))
+
+t2 <- table(tax_table(ps1)[, "Species"], exclude = NULL)
+t2[order(-t2)][2:10]
+```
+Plot Phylum:
+```{r, plotPhylum, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, results='hold', include=TRUE, message=FALSE}
+library("phyloseq")
+library("ggplot2")
+prevDf1 <- subset(prevDf, Phylum %in% get_taxa_unique(ps1, "Phylum"))
+ggplot(prevDf1, aes(TotalAbundance, Prevalence / nsamples(ps1),
+                    color = Phylum)) +
+  geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_x_log10() + xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
+  facet_wrap(~Phylum) + theme(legend.position = "none")
+```
+Each point in the above plots is a different taxa, Phylum.
+```{r, prevTreshSet, eval=TRUE, echo=TRUE, cache=TRUE, comment=NA}
+prevalenceThreshold = 0.05*nsamples(ps1)
+prevalenceThreshold
+```
+The taxa with a prevalence threshold less than the one set in the above chunk are removed using prune_taxa and put into a new phyloseq object, `ps2`, and we look at the resulting richness plot:
+```{r, taxPrevTresh, echo=TRUE, eval=TRUE, results='hold', cache=TRUE, tidy=FALSE, message=FALSE, comment=NA}
+library("phyloseq")
+keepTaxa <- rownames(prevDf1)[(prevDf1$Prevalence >= prevalenceThreshold)]
+ps2 <- prune_taxa(keepTaxa, ps1)
+rank_names(ps2)
+# table(tax_table(ps2)[, "Phylum"], exclude = NULL)
+# table(tax_table(ps2)[, "Species"], exclude = NULL)
+plot_richness(ps2, 
+              x = "ExtractionKit", 
+              measures = c("Shannon", "Simpson"), 
+              color = "Sample") +
+                theme(axis.text.x = element_text(angle = 90)) +
+  scale_x_discrete(name = "Extraction Kit")
+```
+
+Phylum - curiosity:     
+Curious about the mean and sum prevalence after keeping only taxa passing prevalenceThreshold:
+```{r, prevPhylcheck, eval=TRUE, echo=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, comment=NA}
+library("phyloseq")
+prevDf2 <- apply(X = otu_table(ps2),
+                MARGIN = ifelse(taxa_are_rows(ps2), yes = 1, no = 2),
+                FUN = function(x){sum(x > 0)})
+
+prevDf2 <- data.frame(Prevalence = prevDf2,
+                      TotalAbundance = taxa_sums(ps2),
+                      tax_table(ps2))
+
+prevPhylatblThreshold <- plyr::ddply(prevDf2, "Phylum", 
+                                     function(df1){
+                                       cbind(mean(df1$Prevalence), 
+                                             sum(df1$Prevalence))})
+colnames(prevPhylatblThreshold) <- c("Phylum", "Mean", "Sum")
+prevPhylatblThreshold
+```
+Note: I am assuming that the mean is the mean number of times the phylum was seen in a sample for all samples in which it was seen, while the sum is the total times it was seen across all samples. Ascomycota was seen a total of 1,857 times, with about 6 occurances per sample, while Mucoromycota was seen 3 times total ans the mean is simply 3 because when it was seen, it was all three in one sample.     
+     
+Number of unique phyla, genera and species, across all samples:
+```{r, taxUniqueRanks, echo=TRUE, eval=TRUE, cache=TRUE, comment=NA}
+library("phyloseq")
+uniqueClasses <- c("Phylum", "Genus", "Species")
+for(i in unique(uniqueClasses)) 
+  cat(cat(i), length(phyloseq::get_taxa_unique(ps2, taxonomic.rank = i)), "\n")
+```
+
+The tax_glom function of phyloseq merges species that have the same taxonomy at certain taxonomic rank, using categorical data. The tip_glom function agglomerates tree tips into a single taxa if they are separated by less than a height specified by `h`. 
+```{r, taxGlom, echo=TRUE, eval=TRUE, cache=TRUE}
+library("phyloseq")
+ps3 <- phyloseq::tax_glom(ps2, "Genus", NArm = TRUE)
+h1 = 0.4
+ps4 <- phyloseq::tip_glom(ps2, h = h1)
+```
+
+Below we will look at plots of our trees before agglomeration, with agglomeration using tax_glom, and with agglomeration by tip separation using tip_glom:
+```{r, tipGlom, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, message=FALSE}
+library("phyloseq")
+library("ggplot2")
+library("gridExtra")
+multiPlotTitleTextSize = 15
+p2Tree <- phyloseq::plot_tree(ps2, method = "treeonly",
+                              ladderize = "left",
+                              title = "Before Agglomeration") +
+  ggplot2::theme(plot.title = element_text(size = multiPlotTitleTextSize))
+
+p3Tree <- phyloseq::plot_tree(ps3, method = "treeonly",
+                              ladderize = "left", title = "By Genus") +
+  ggplot2::theme(plot.title = element_text(size = multiPlotTitleTextSize))
+
+p4Tree <- phyloseq::plot_tree(ps4, method = "treeonly",
+                              ladderize = "left", title = "By Height") +
+  ggplot2::theme(plot.title = element_text(size = multiPlotTitleTextSize))
+gridExtra::grid.arrange(nrow = 1, p2Tree, p3Tree, p4Tree)
+```
+
+From here on we will continue using the `ps2` phyloseq object, that has ahd the `NA', low-abundance, and prevalence threshold filters applied.  
+```{r, plotBar, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, comment=NA}
+library("phyloseq")
+phyloseq::plot_bar(ps2, 
+                   x = "sample_Sample", 
+                   fill = "Phylum", 
+                   facet_grid = ~ExtractionKit)
+```
+
+```{r, plotPhylum2, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, comment=NA}
+library("phyloseq")
+library("ggplot2")
+plotPhylum <- phyloseq::plot_bar(ps2, x = "ExtractionKit", fill  = "Phylum", 
+                                 facet_grid = ~sample_Sample) + 
+  ylab("Abundance") + 
+  geom_bar(aes(color = Phylum, fill = Phylum),
+           stat = "identity", position = "stack") 
+
+plotPhylum
+```
+
+```{r, topTaxPlotsGenus, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, comment=NA, warning=FALSE}
+library("phyloseq")
+library("ggplot2")
+
+topGenus    <- names(sort(phyloseq::taxa_sums(ps2), TRUE)[1:41])
+taxTabGenus <- cbind(phyloseq::tax_table(ps2), Genus = NA)
+taxTabGenus[topGenus, "Genus"] <- as(tax_table(ps2)[topGenus, "Genus"],
+                                     "character")
+
+tax_table(ps2) <- phyloseq::tax_table(taxTabGenus)
+ps2m <- merge_samples(ps2, "ExtractionKit")
+sample_data(ps2m)$ExtractionKit <- levels(sample_data(ps2)$ExtractionKit)
+ps2m <- phyloseq::transform_sample_counts(ps2m, function(x) 100 * x/sum(x))
+
+ps2mTop = prune_taxa(topGenus, ps2m)
+title = "Figure 1 Top 17 Fungi Genera, attempt 1"
+plotGenus <- plot_bar(ps2mTop, 
+                      #x = "Sample", 
+                      fill  = "Genus", 
+                      title = title) + 
+  coord_flip() + 
+  ylab("Percentage of Sequences") + ylim(0, 50) +
+  geom_bar(aes(color = Genus, fill = Genus),
+           stat = "identity", position = "stack") 
+  
+plotGenus
+```
+
+```{r, topTaxPlotsSpp, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, comment=NA, warning=FALSE}
+library("phyloseq")
+library("ggplot2")
+
+topSpecies <- names(sort(taxa_sums(ps2), TRUE)[1:27])
+taxTabSpp  <- cbind(phyloseq::tax_table(ps2), Species = NA)
+taxTabSpp[topSpecies, "Species"] <- as(phyloseq::tax_table(ps2)[topSpecies, "Species"],
+                                       "character")
+tax_table(ps2) <- phyloseq::tax_table(taxTabSpp)
+ps2mSpp <- phyloseq::merge_samples(ps2, "ExtractionKit")
+sample_data(ps2mSpp)$ExtractionKit <- levels(sample_data(ps2)$ExtractionKit)
+ps2mSpp <- phyloseq::transform_sample_counts(ps2mSpp, function(x) 100 * x/sum(x))
+
+ps2mSppTop = prune_taxa(topSpecies, ps2mSpp)
+title = "Figure 2 Top 17 Fungal Species, attempt 1"
+plotSpecies <- plot_bar(ps2mSppTop, 
+                        x = "Sample", 
+                        fill = "Species", 
+                        title = title) + 
+  coord_flip() + 
+  ylab("Percentage of Sequences") + ylim(0, 45) +
+  geom_bar(aes(color = Species, fill = Species), 
+           stat = "identity", position = "stack")
+plotSpecies
+```
+Below I'm testing what a heatmap would look like for taxa abundance across extraction kits:
+```{r, plotHeatMap, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, comment=NA, warning=FALSE}
+library("phyloseq")
+library("ggplot2")
+heatPlot <- phyloseq::plot_heatmap(ps2mTop, "PCoA", distance="bray", 
+                                   sample.label="Sample", 
+                                   taxa.label="Species",
+                                   low="#66CCFF", high="#000033", na.value="white") +
+  scale_x_discrete(expand=c(0,0))
+heatPlot
+```
+
+```{r, barPlotTop20Genus, echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, tidy=FALSE, cache=TRUE, warning=FALSE}
+library("phyloseq")
+library("ggplot2")
+
+top20 <- names(sort(taxa_sums(ps2), decreasing=TRUE))[1:20]
+ps.top20 <- phyloseq::transform_sample_counts(ps2, function(OTU) OTU/sum(OTU))
+ps.top20 <- phyloseq::prune_taxa(top20, ps.top20)
+
+plotGenus <- phyloseq::plot_bar(ps.top20, x = "ExtractionKit", fill = "Genus", 
+                                facet_grid = ~sample_Sample)
+plotGenus + geom_bar(aes(color = Genus, fill = Genus), 
+                     stat = "identity", 
+                     position = "stack")
+```
+Fo help see:    
+https://www.gdc-docs.ethz.ch/MDA/handouts/MDA20_PhyloseqFormation_Mahendra_Mariadassou.pdf     
+     
+Not yet working:     
+Transform data to proportions as appropriate for Bray-Curtis distances:
+```{r, trnfrmBrayC, eval=TRUE, echo=TRUE, tidy=FALSE, warning=FALSE, error=FALSE, warning=FALSE}
+library("phyloseq")
+count_to_prop <- function(x) x/sum(x)
+# psProp <- phyloseq::transformSampleCounts(ps2, function(otu) otu/sum(otu))
+psProp <- phyloseq::transformSampleCounts(ps2, count_to_prop)
+# ordNmdsBray1 <- phyloseq::ordinate(psProp, method="NMDS", distance="bray")
+# sample_sums(psProp)[1:5]
+
+p <- plot_richness(ps, color = "ExtractionKit", x = "ExtractionKit",
+                   measures = c("Observed", "Chao1", "Shannon", "InvSimpson"))
+p <- p + geom_boxplot()
+plot(p)
+
+p <- plot_richness(ps, color = "Sample", x = "Sample",
+                   measures = c("Observed", "Chao1", "Shannon", "InvSimpson"))
+p <- p + geom_boxplot()
+#plot(p)
+p
+```
+
+Statistical analysis
+Post hoc comparisons between the four tested methods were made using the Tukey HSD test. OTUs or OTUs pooled at phylum, class, order, family or genera level with different abundances were identified using a generalized linear model where the counts follow an overdispersed Poisson distribution (Kristiansson, Hugenholtz and Dalevi 2009; Jonsson et al.2016). The p-values were corrected for multiple testing using the false discovery rate (FDR) method. The OTU abundance was used for principal component analysis (PCA). Shared OTUs between DNA extraction methods were graphically visualised in Venn diagrams using the corresponding OTU tables exported from QIIME. The hypergeometric distribution was used to test the distribution of gram negatives and gram positives among the taxa identified with the respective four DNA extraction methods. Pearson correlations were used to test for correlations between descriptors of DNA quantity and quality (Table 1), and descriptors of taxonomic diversity (Table 2). The statistical significance for all the analyses was set to P < 0.05 or FDR< 0.05. All statistical analyses were carried out using the R v.3.2.0 software (R Core Team 2013).
+
+Table 2.
+Detected 16S rRNA richness and biodiversity from marine periphyton biofilm DNA extracted with the four studied methods.
+
+ 	FastDNA Soil 	PowerPlant 	PowerBiofilm 	PlantDNAzol 	 
+n 	3 	2 	3 	3 	P-values 
+No. of OTUs 	666 ± 42 	704 ± 58 	809 ± 11 	791 ± 7 	P < 0.05 
+No. of phyla 	17 ± 1 	17 ± 1 	17 ± 1 	18 ± 0 	ns 
+No. of classes 	39 ± 1 	40 ± 1 	40 ± 2 	41 ± 1 	ns 
+No. of orders 	68 ± 3 	70 ± 3 	71 ± 2 	72 ± 1 	ns 
+No. of families 	91 ± 2 	95 ± 6 	104 ± 3 	106 ± 2 	P < 0.05 
+No. of genera 	141 ± 4 	145 ± 12 	159 ± 4 	162 ± 3 	P < 0.05 
+
+Each value represents the arithmetic mean ± standard error of the mean. n: number of replicates. Statistical significance between extraction methods is denoted as P < 0.05 (ANOVA).
+
+ns: indicates no statistically significant differences between extraction methods.
