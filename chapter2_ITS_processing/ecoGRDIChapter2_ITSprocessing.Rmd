@@ -3,6 +3,7 @@ title: 'Chaper 2: ITS Sample Processing Raw Reads'
 author: "Emily Giroux"
 date: "4/2/2019"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
 header-includes: \usepackage{xcolor}
@@ -16,14 +17,6 @@ opts_chunk$set(tidy.opts=list(width.cutoff = 80), tidy = TRUE, fig.align = 'cent
                cache = FALSE, collapse = TRUE, echo = FALSE, eval = FALSE, include = FALSE,
                message = FALSE, quietly = TRUE, results = 'hide', warn.conflicts = FALSE, 
                warning = FALSE)
-```
-
-```{r, uglyCode, eval=FALSE, echo=FALSE, include=FALSE}
-installed.packages()[, c("Package", "LibPath")]
-remove.packages(c("utils","tools","tcltk", "survival", "stats4", "stats", "splines", "spatial", "rpart", "parallel", "nnet", "nlme", "mgcv", "methods", "Matrix", "MASS", "lattice", "KernSmooth", "grid", "grDevices", "graphics", "foreign", "datasets", "compiler", "codetools", "cluster", "class", "boot", "base"))
-install.packages(c("utils","tools","tcltk", "survival", "stats4", "stats", "splines", "spatial", "rpart", "parallel", "nnet", "nlme", "mgcv", "methods", "Matrix", "MASS", "lattice", "KernSmooth", "grid", "grDevices", "graphics", "foreign", "datasets", "compiler", "codetools", "cluster", "class", "boot", "base"))
-# For errors with latex, try:
-# tinytex::install_tinytex()
 ```
 
 **Using package `BiocManager` to install required packages:**
@@ -275,8 +268,6 @@ for(i in seq_along(metadataRegion$LibraryName)) {
                              filtF[i], filtR[i]))
 }
 ```
-\pagebreak
-     
 \textbf{Note:} There is a lot of output generated to the console when running cutadapt. One warning we may see often is about detection of incomplete adapter sequences:     
      
 > `WARNING:`     
