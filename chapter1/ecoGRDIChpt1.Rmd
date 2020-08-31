@@ -21,13 +21,6 @@ opts_chunk$set(tidy.opts=list(width.cutoff = 80), tidy = TRUE, fig.align = 'cent
                warning = FALSE)
 ```
 
-```{r, uglyCode, eval=FALSE, echo=FALSE, include=FALSE}
-installed.packages()[, c("Package", "LibPath")]
-remove.packages(c("utils","tools","tcltk", "survival", "stats4", "stats", "splines", "spatial", "rpart", "parallel", "nnet", "nlme", "mgcv", "methods", "Matrix", "MASS", "lattice", "KernSmooth", "grid", "grDevices", "graphics", "foreign", "datasets", "compiler", "codetools", "cluster", "class", "boot", "base"))
-install.packages(c("utils","tools","tcltk", "survival", "stats4", "stats", "splines", "spatial", "rpart", "parallel", "nnet", "nlme", "mgcv", "methods", "Matrix", "MASS", "lattice", "KernSmooth", "grid", "grDevices", "graphics", "foreign", "datasets", "compiler", "codetools", "cluster", "class", "boot", "base"))
-# For errors with latex, try:
-# tinytex::install_tinytex()
-```
 **Using package `BiocManager` to install required packages:**
 ```{r, biocInstall, eval=TRUE, echo=TRUE, include=TRUE}
 #Installing required packages
