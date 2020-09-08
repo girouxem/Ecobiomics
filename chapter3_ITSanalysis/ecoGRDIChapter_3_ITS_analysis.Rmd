@@ -395,6 +395,7 @@ Not yet working:
 Transform data to proportions as appropriate for Bray-Curtis distances:
 ```{r, trnfrmBrayC, eval=TRUE, echo=TRUE, tidy=FALSE, warning=FALSE, error=FALSE, warning=FALSE}
 library("phyloseq")
+library("ggplot2")
 count_to_prop <- function(x) x/sum(x)
 # psProp <- phyloseq::transformSampleCounts(ps2, function(otu) otu/sum(otu))
 psProp <- phyloseq::transformSampleCounts(ps2, count_to_prop)
@@ -415,18 +416,20 @@ p
 
 Statistical analysis
 Post hoc comparisons between the four tested methods were made using the Tukey HSD test. OTUs or OTUs pooled at phylum, class, order, family or genera level with different abundances were identified using a generalized linear model where the counts follow an overdispersed Poisson distribution (Kristiansson, Hugenholtz and Dalevi 2009; Jonsson et al.2016). The p-values were corrected for multiple testing using the false discovery rate (FDR) method. The OTU abundance was used for principal component analysis (PCA). Shared OTUs between DNA extraction methods were graphically visualised in Venn diagrams using the corresponding OTU tables exported from QIIME. The hypergeometric distribution was used to test the distribution of gram negatives and gram positives among the taxa identified with the respective four DNA extraction methods. Pearson correlations were used to test for correlations between descriptors of DNA quantity and quality (Table 1), and descriptors of taxonomic diversity (Table 2). The statistical significance for all the analyses was set to P < 0.05 or FDR< 0.05. All statistical analyses were carried out using the R v.3.2.0 software (R Core Team 2013).
+\pagebreak
 
 Table 2.
-Detected 16S rRNA richness and biodiversity from marine periphyton biofilm DNA extracted with the four studied methods.
+:   Detected 16S rRNA richness and biodiversity from marine periphyton biofilm DNA extracted with the four studied methods.
 
- 	FastDNA Soil 	PowerPlant 	PowerBiofilm 	PlantDNAzol 	 
-n 	3 	2 	3 	3 	P-values 
-No. of OTUs 	666 ± 42 	704 ± 58 	809 ± 11 	791 ± 7 	P < 0.05 
-No. of phyla 	17 ± 1 	17 ± 1 	17 ± 1 	18 ± 0 	ns 
-No. of classes 	39 ± 1 	40 ± 1 	40 ± 2 	41 ± 1 	ns 
-No. of orders 	68 ± 3 	70 ± 3 	71 ± 2 	72 ± 1 	ns 
-No. of families 	91 ± 2 	95 ± 6 	104 ± 3 	106 ± 2 	P < 0.05 
-No. of genera 	141 ± 4 	145 ± 12 	159 ± 4 	162 ± 3 	P < 0.05 
+|	                | FastDNA  | Soil     | PowerPlant | PowerBiofilm | PlantDNAzol |	 
+|:---------------:|:--------:|:--------:|:----------:|:------------:|:-----------:|
+| n 	            | 3        | 2        |	3          |	3           |	P-values    |
+| No. of OTUs     | 666 ± 42 | 704 ± 58 | 809 ± 11   | 791 ± 7      | P < 0.05    |
+| No. of phyla    | 	17 ± 1 | 17 ± 1   | 17 ± 1     | 18 ± 0       | ns          |
+| No. of classes  | 39 ± 1   | 40 ± 1   | 40 ± 2     | 41 ± 1       | ns          |
+| No. of orders   | 68 ± 3   | 70 ± 3   | 71 ± 2     | 72 ± 1       | ns          |
+| No. of families | 91 ± 2   | 95 ± 6   | 104 ± 3    | 106 ± 2      | P < 0.05    |
+| No. of genera   | 141 ± 4  | 145 ± 12 | 159 ± 4    | 162 ± 3      | P < 0.05    |
 
 Each value represents the arithmetic mean ± standard error of the mean. n: number of replicates. Statistical significance between extraction methods is denoted as P < 0.05 (ANOVA).
 
