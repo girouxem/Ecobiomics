@@ -71,11 +71,10 @@ sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_dire
 analysis <- "ecobiomics/"
 sharedPathAn <- paste(sharedPath, analysis, sep = "")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
-baseImage    <- "ecobiomics_StartUp.RData" # Loads Chapter 1 image
-chptImageA <- "ecobiomics_ITS.RData"
-chptImageB <- "ecobiomics_ITS_2b.RData"
+
+# Load up required environment variables from previous chapter:
+chptImageA   <- "ecobiomics_ITS.RData"
 load(paste(imageDirPath, chptImageA, sep = ""))
-load(paste(imageDirPath, chptImageB, sep = ""))
 ```
     
 **Load the relevant images**, then save this chapter's image as a separate image to retain environment data specific to the ITS processing and analysis workflow.
@@ -92,8 +91,8 @@ sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_dire
 analysis <- "ecobiomics/"
 sharedPathAn <- paste(sharedPath, analysis, sep = "")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
-chptImageB <- "ecobiomics_ITS_2b.RData"
-load(paste(imageDirPath, "slim_", chptImageB, sep = ""))
+chptImageA <- "ecobiomics_ITS.RData"
+load(paste(imageDirPath, chptImageA, sep = ""))
 chptImage    <- "ecobiomics_ITS_analysis.RData" 
 save.image(paste(imageDirPath, chptImage, sep = ""))
 ```
