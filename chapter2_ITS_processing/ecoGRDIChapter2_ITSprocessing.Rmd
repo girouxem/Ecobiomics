@@ -1,15 +1,12 @@
 ---
 title: 'Chaper 2: ITS Sample Processing Raw Reads'
 author: "Emily Giroux"
-date: "4/2/2019"
-output:
-  pdf_document: default
-  html_document:
-    df_print: paged
-header-includes: \usepackage{xcolor}
-geometry: margin=1in
+date: "09/08/2020"
+output: pdf_document
 fontsize: 11pt
+geometry: margin=1in
 urlcolor: blue
+header-includes: \usepackage{xcolor}
 ---
 ```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
 library("knitr")
@@ -64,10 +61,6 @@ analysis <- "ecobiomics/"
 sharedPathAn <- paste(sharedPath, analysis, sep = "")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
 startUpImage <- "ecobiomics_StartUp.RData"
-chptImageA   <- "ecobiomics_ITS.RData"
-load(paste(imageDirPath, startUpImage, sep = ""))
-load(paste(imageDirPath, chptImageA, sep = ""))
-save.image(paste(imageDirPath, chptImageA, sep = ""))
 ```
 \pagebreak    
 **Load the saved image from Chapter 1**, then save it as a separate image to retain environment data specific to the ITS processing and analysis workflow.
@@ -82,9 +75,7 @@ sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_dire
 analysis <- "ecobiomics/"
 sharedPathAn <- paste(sharedPath, analysis, sep = "/")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
-startUpImage <- "ecobiomics_StartUp.RData"
 chptImageA   <- "ecobiomics_ITS.RData"
-load(paste(imageDirPath, startUpImage, sep = ""))
 load(paste(imageDirPath, chptImageA, sep = ""))
 ```
 
@@ -92,7 +83,7 @@ load(paste(imageDirPath, chptImageA, sep = ""))
 In this chapter, we are working with the ITS amplicon samples, so the ITS directory within our main project directory will contain all the region-specific output.
 ```{r, setRegDir, echo=TRUE, eval=FALSE, include=TRUE, cache=TRUE}
 region <- "ITS"
-sharedPathReg <- paste(sharedPathAn, region, "_analysis/", sep = "")
+sharedPathReg <- paste(sharedPathAn, "/", region, "_analysis/", sep = "")
 if(!dir.exists(sharedPathReg)) dir.create(sharedPathReg)
 
 # Make the region-specific metadatable for this chapter the main metadata table:
