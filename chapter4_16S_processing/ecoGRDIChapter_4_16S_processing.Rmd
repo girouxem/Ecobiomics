@@ -1,7 +1,7 @@
 ---
 title: 'Chapter 4: 16S data analysis using the R package PhyloSeq'
 author: "Emily Giroux"
-date: "4/17/2019"
+date: "09/08/2020"
 output: pdf_document
 fontsize: 11pt
 geometry: margin=1in
@@ -9,45 +9,57 @@ urlcolor: blue
 header-includes: \usepackage{xcolor}
 ---
 ```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
+#Set the global options for knitr
 library("knitr")
-opts_chunk$set(tidy.opts=list(width.cutoff = 80), tidy = TRUE, fig.align = 'center',
-               cache = FALSE, collapse = TRUE, echo = FALSE, eval = FALSE, include = FALSE,
-               message = FALSE, quietly = TRUE, results = 'hide', warn.conflicts = FALSE, 
-               warning = FALSE)
+opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy = TRUE, fig.align='center',
+               cache=FALSE, collapse=TRUE, echo=FALSE, eval=FALSE, include=FALSE,
+               message=FALSE, quietly=TRUE, results='hide', warn.conflicts=FALSE, 
+               warning=FALSE)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
 ```
 
-```{r, uglyCode, eval=FALSE, echo=FALSE, include=FALSE}
-installed.packages()[, c("Package", "LibPath")]
-remove.packages(c("utils","tools","tcltk", "survival", "stats4", "stats", "splines", "spatial", "rpart", "parallel", "nnet", "nlme", "mgcv", "methods", "Matrix", "MASS", "lattice", "KernSmooth", "grid", "grDevices", "graphics", "foreign", "datasets", "compiler", "codetools", "cluster", "class", "boot", "base"))
-install.packages(c("utils","tools","tcltk", "survival", "stats4", "stats", "splines", "spatial", "rpart", "parallel", "nnet", "nlme", "mgcv", "methods", "Matrix", "MASS", "lattice", "KernSmooth", "grid", "grDevices", "graphics", "foreign", "datasets", "compiler", "codetools", "cluster", "class", "boot", "base"))
-# For errors with latex, try:
-# tinytex::install_tinytex()
-```
-
-**Using package `BiocManager` to install required packages:**
-```{r, biocInstall, eval=TRUE, echo=TRUE, include=TRUE, cache=TRUE, tidy=FALSE, message=FALSE}
-r <- getOption("repos")
-r["CRAN"] <- "http://cran.us.r-project.org"
+```{r, installation1, eval=TRUE, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
+#Installing required packages
+r = getOption("repos")
+r["CRAN"] = "http://cran.us.r-project.org"
 options(repos = r)
-if (!requireNamespace("BiocManager")) install.packages("BiocManager")
+
+if(!require(devtools)) install.packages("devtools")
+devtools::install_github("kassambara/fastqcr")
+
+if (!requireNamespace("BiocManager"))
+    install.packages("BiocManager")
 BiocManager::install()
+
 library("BiocManager")
-.cran_packages <- c("cowplot", "data.table", "doParallel", "doSNOW","foreach", 
-                    "ggplot2", "knitr", "parallel", "rprojroot")
-.bioc_packages <- c("BiocStyle", "Biostrings", "dada2", "ShortRead")
+.cran_packages <- c("ggplot2", "gridExtra", "rprojroot", "data.table", 
+                    "knitr", "kableExtra", "cowplot", "filesstrings")
+.bioc_packages <- c("BiocStyle", "dada2", "phyloseq", "DECIPHER", "phangorn")
 .inst <- .cran_packages %in% installed.packages()
-if(any(!.inst)) {install.packages(.cran_packages[!.inst])}
+if(any(!.inst)) {
+   install.packages(.cran_packages[!.inst])
+}
 .inst <- .bioc_packages %in% installed.packages()
-if(any(!.inst)) {BiocManager::install(.bioc_packages[!.inst], ask = FALSE)}
-```
-**Load packages into session, and print package versions:**
-```{r, showBiocPackages, echo=TRUE, eval=TRUE, include=TRUE, results='hold', cache=TRUE}
+if(any(!.inst)) {
+  BiocManager::install(.bioc_packages[!.inst], ask = FALSE)
+}
 sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
 ```
 
 ```{r sourcing_my_functions, echo=FALSE, eval=TRUE, include=FALSE, cache=TRUE}
 #Source our custom R scripts:    
-library(rprojroot)
+#For this we will use the rprojroot package to set the directory structures. This will help us when finding our files to source functions. We specify ours is an RStudio project. The root object contains a function that will help us locate our package R files regarless of our current working directory.
+library("rprojroot")
 root <- rprojroot::is_rstudio_project
 scriptsPath <- root$make_fix_file(".")("R")
 scripts  <- dir(root$find_file("R", path = root$find_file()))
@@ -59,38 +71,39 @@ analysis <- "ecobiomics/"
 sharedPathAn <- paste(sharedPath, analysis, sep = "")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
 startUpImage <- "ecobiomics_StartUp.RData"
-chptImageA <- "ecobiomics_16S.RData"
 load(paste(imageDirPath, startUpImage, sep = ""))
-load(paste(imageDirPath, chptImageA, sep = ""))
-save.image(paste(imageDirPath, chptImageA, sep = ""))
 ```
-    
-**Load the saved image from Chapter 1**, and create and save the environment data specific to the 16S processing and analysis workflow.
+   
+**Load the saved image from Chapter 1**, then save it as a separate image to retain environment data specific to the 16S processing and analysis workflow.
 ```{r, loadBaseImage, echo=TRUE, eval=FALSE, include=TRUE, results='hold'}
-load(paste(imageDirPath, thisImage, sep = ""))
-chptImage <- "ecobiomics_16S.RData"
+# Set the name for this chapter's image:
+chptImageA <- "ecobiomics_16S.RData"
+
+# Save this chapter's image:
 save.image(paste(imageDirPath, chptImageA, sep = ""))
-```
-**Create a variable shortcut to the region-specific analysis directory:**    
-In this chapter, we are working with the 16S amplicon samples, so the 16S directory within our main project directory will contain all the region-specific output.
-```{r, setRegDir, echo=TRUE, eval=FALSE, include=TRUE, cache=TRUE}
-region <- "16S"
-sharedPathReg <- paste(sharedPathAn, region, "_analysis/", sep = "")
-if(!dir.exists(sharedPathReg)) dir.create(sharedPathReg)
-metadataRegion <- metadata16S
 ```
 
 When re-starting a session, you can quickly load up the image by running the chunk below:
 ```{r, quickImageLoad, echo=TRUE, eval=TRUE, include=TRUE, results='hold'}
 sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
 analysis <- "ecobiomics/"
-sharedPathAn <- paste(sharedPath, analysis, sep = "")
+sharedPathAn <- paste(sharedPath, analysis, sep = "/")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
-startUpImage <- "ecobiomics_StartUp.RData"
-chptImageA <- "ecobiomics_16S.RData"
-load(paste(imageDirPath, startUpImage, sep = ""))
+chptImageA   <- "ecobiomics_16S.RData"
 load(paste(imageDirPath, chptImageA, sep = ""))
 ```
+
+**Create a variable shortcut to the region-specific analysis directory:**    
+In this chapter, we are working with the 16S amplicon samples, so the 16S directory within our main project directory will contain all the region-specific output.
+```{r, setRegDir, echo=TRUE, eval=FALSE, include=TRUE, cache=TRUE}
+region <- "16S"
+sharedPathReg <- paste(sharedPathAn, "/", region, "_analysis/", sep = "")
+if(!dir.exists(sharedPathReg)) dir.create(sharedPathReg)
+
+# Make the region-specific metadatable for this chapter the main metadata table:
+metadataRegion <- metadata16S
+```
+\pagebreak    
 
 **Sample processing follows the steps outlined in Chapter 1**    
     
@@ -111,7 +124,7 @@ plotRawQRev <- dada2::plotQualityProfile(paste(metadataRegion$rawFastqPath[1:2],
 library("cowplot")
 cowplot::plot_grid(plotRawQFwd, plotRawQRev, nrow = 2)
 ```
-
+\pagebreak 
 **Checking for Adapter Sequences**     
 We're going to use Cutadapt to detect and trim off 16S-specific adapter sequences, V4-V5 hypervariable region.         
 
@@ -201,22 +214,12 @@ revPrimerRC <- dada2:::rc(revPrimer)
 fwdFlags <- paste("-g", fwdPrimer, "-a", revPrimerRC)
 # Trim revPrimer and the reverse-complement of the fwdPrimer off reverse reads:
 revFlags <- paste("-G", revPrimer, "-A", fwdPrimerRC)
-
-# Run Cutadapt with multi-thread processing
-library("parallel")
-library("foreach")
-library("doParallel")
-library("doSNOW")
-
-cluster <- makeCluster(detectCores() - 1)
-registerDoParallel(cluster, cores = detectCores() - 1)
-
-foreach::foreach(i = 1:length(metadataRegion$LibraryName), .errorhandling = 'pass') %dopar% {
+# Run Cutadapt
+for(i in seq_along(metadataRegion$LibraryName)) {
   system2(cutadapt, args = c(fwdFlags, revFlags, "-n", 2,
                              "-o", cutFqs[i], "-p", cutRqs[i],
                              filtF[i], filtR[i]))
 }
-stopCluster(cluster)
 ```
 \textbf{Note:} There is a lot of output generated to the console when running cutadapt. One warning we may see often is about detection of incomplete adapter sequences:     
      
