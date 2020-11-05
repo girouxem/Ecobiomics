@@ -11,40 +11,22 @@ header-includes: \usepackage{xcolor}
 ```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
 #Set the global options for knitr
 library("knitr")
-opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy = TRUE, fig.align='center',
-               cache=FALSE, collapse=TRUE, echo=FALSE, eval=FALSE, include=FALSE,
-               message=FALSE, quietly=TRUE, results='hide', warn.conflicts=FALSE, 
-               warning=FALSE)
-hook_output = knit_hooks$get('output')
-knit_hooks$set(output = function(x, options) {
-  # this hook is used only when the linewidth option is not NULL
-  if (!is.null(n <- options$linewidth)) {
-    x = knitr:::split_lines(x)
-    # any lines wider than n should be wrapped
-    if (any(nchar(x) > n)) x = strwrap(x, width = n)
-    x = paste(x, collapse = '\n')
-  }
-  hook_output(x, options)
-})
+opts_chunk$set(tidy.opts=list(width.cutoff = 80), tidy = TRUE, fig.align = 'center',
+               cache = FALSE, collapse = TRUE, echo = FALSE, eval = FALSE, include = FALSE,
+               message = FALSE, quietly = TRUE, results = 'hide', warn.conflicts = FALSE, 
+               warning = FALSE)
 ```
 
 ```{r, installation1, eval=TRUE, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
-#Installing required packages
-r = getOption("repos")
-r["CRAN"] = "http://cran.us.r-project.org"
+r <- getOption("repos")
+r["CRAN"] <- "http://cran.us.r-project.org"
 options(repos = r)
-
-if(!require(devtools)) install.packages("devtools")
-devtools::install_github("kassambara/fastqcr")
-
 if (!requireNamespace("BiocManager"))
     install.packages("BiocManager")
 BiocManager::install()
-
 library("BiocManager")
-.cran_packages <- c("ggplot2", "gridExtra", "rprojroot", "data.table", 
-                    "knitr", "kableExtra", "cowplot", "filesstrings")
-.bioc_packages <- c("BiocStyle", "dada2", "phyloseq", "DECIPHER", "phangorn")
+.cran_packages <- c("cowplot", "data.table", "ggplot2", "knitr", "rprojroot")
+.bioc_packages <- c("BiocStyle", "Biostrings", "dada2", "ShortRead")
 .inst <- .cran_packages %in% installed.packages()
 if(any(!.inst)) {
    install.packages(.cran_packages[!.inst])
@@ -53,6 +35,10 @@ if(any(!.inst)) {
 if(any(!.inst)) {
   BiocManager::install(.bioc_packages[!.inst], ask = FALSE)
 }
+```
+
+**Load packages into session, and print package versions:**
+```{r}
 sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
 ```
 
@@ -65,21 +51,19 @@ scriptsPath <- root$make_fix_file(".")("R")
 scripts  <- dir(root$find_file("R", path = root$find_file()))
 scriptsl <- paste(scriptsPath, scripts, sep = "//")
 lapply(scriptsl, source)
+
 # Record the path to the environment images directory:
 sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
 analysis <- "ecobiomics/"
 sharedPathAn <- paste(sharedPath, analysis, sep = "")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
 startUpImage <- "ecobiomics_StartUp.RData"
-load(paste(imageDirPath, startUpImage, sep = ""))
 ```
    
 **Load the saved image from Chapter 1**, then save it as a separate image to retain environment data specific to the 16S processing and analysis workflow.
 ```{r, loadBaseImage, echo=TRUE, eval=FALSE, include=TRUE, results='hold'}
-# Set the name for this chapter's image:
+load(paste(imageDirPath, startUpImage, sep = ""))
 chptImageA <- "ecobiomics_16S.RData"
-
-# Save this chapter's image:
 save.image(paste(imageDirPath, chptImageA, sep = ""))
 ```
 
@@ -112,15 +96,14 @@ metadataRegion <- metadata16S
 library("dada2")
 library("ggplot2")
 plotRawQFwd <- dada2::plotQualityProfile(paste(metadataRegion$rawFastqPath[1:2], 
-                                               metadataRegion$rawR1[1:2], 
-                                               sep = "")) +
+                                               metadataRegion$rawR1[1:2], sep = "")) +
   ggplot2::ggtitle("Quality Plot of Two Samples of Unprocessed Forward Reads") +
   ggplot2::theme(plot.title = element_text(hjust = 0.5))
 plotRawQRev <- dada2::plotQualityProfile(paste(metadataRegion$rawFastqPath[1:2], 
-                                               metadataRegion$rawR2[1:2], 
-                                               sep = "")) +
+                                               metadataRegion$rawR2[1:2], sep = "")) +
   ggplot2::ggtitle("Quality Plot of Two Samples of Unprocessed Reverse Reads") +
   ggplot2::theme(plot.title = element_text(hjust = 0.5))
+
 library("cowplot")
 cowplot::plot_grid(plotRawQFwd, plotRawQRev, nrow = 2)
 ```
@@ -136,19 +119,21 @@ We're going to use Cutadapt to detect and trim off 16S-specific adapter sequence
      
 >\textcolor{blue}{5'} CCGYCAATTYMTTTRAGTTT \textcolor{blue}{3'}           
           
-2. Cutadapt      
+2. Cutadapt. We are replacing the code for SeqPrep with the use of cutadapt and workflow developed by Benjamin Callahan. See page: https://benjjneb.github.io/dada2/ITS_workflow.html      
       
 Capture your forward and reverse 16S primers:
 ```{r, recordPrimers, echo=TRUE, eval=TRUE, include=TRUE, tidy=FALSE, linewidth=80}
 fwdPrimer <- "GTGYCAGCMGCCGCGGTAA"
 revPrimer <- "CCGYCAATTYMTTTRAGTTT"
 ```
-Use the AllOrients function to generate the primer sequences in all possible orientations in which they may be found:
+
+Use the AllOrients (function defined in chapter2_ITSprocessing.Rmd) function to generate the primer sequences in all possible orientations in which they may be found:
 ```{r, runAllOrientsFn, echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, cache=TRUE, comment=NA}
 fwdOrients <- AllOrients(fwdPrimer)
 revOrients <- AllOrients(revPrimer)
 fwdOrients
 ```
+
 Remove those sequences with ambiguous bases prior to running cutadapt:
 ```{r, filterNsfqs, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
 library("dada2")
@@ -173,7 +158,7 @@ dada2::filterAndTrim(fwd, filtF, rev, filtR, maxN = 0,
                      multithread = TRUE, verbose = TRUE)
 ```
 
-We can now check the N-filtered sequences of just one sample set for primer hits using the PrimerHits function:
+We can now check the N-filtered sequences of just one sample set for primer hits using the PrimerHits function (function defined in chapter2_ITSprocessing.Rmd):
 ```{r, cntPrimerHits, echo=TRUE, eval=TRUE, tidy=FALSE, cache=TRUE, message=FALSE, warning=FALSE, comment=NA}
 library("ShortRead")
 rbind(FWD.ForwardReads = sapply(fwdOrients, PrimerHits, fn = filtF[1]),
@@ -205,7 +190,7 @@ cutRqs <- paste(cutAdaptDir,
                 metadataRegion$LibraryName, "_Rcut.fastq.gz", sep = "")
 ```
 
-Now we can proceed to using cutadapt to remove primer sequences at the ends of our reads.     
+Now we can proceed to using cutadapt to remove primer sequences at the ends of our reads. See chapter2_ITSprocessing.Rmd for more details on Cutadapt flag parameters.     
 ```{r, cutadapt, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, cache=TRUE}
 library("dada2")
 fwdPrimerRC <- dada2:::rc(fwdPrimer)
