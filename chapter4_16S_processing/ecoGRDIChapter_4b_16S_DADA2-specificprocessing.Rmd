@@ -17,29 +17,17 @@ opts_chunk$set(tidy.opts=list(width.cutoff = 80), tidy = TRUE, fig.align = 'cent
                warning = FALSE)
 ```
 
-```{r, uglyCode, eval=FALSE, echo=FALSE, include=FALSE}
-installed.packages()[, c("Package", "LibPath")]
-remove.packages(c("utils","tools","tcltk", "survival", "stats4", "stats", "splines", "spatial", "rpart", "parallel", "nnet", "nlme", "mgcv", "methods", "Matrix", "MASS", "lattice", "KernSmooth", "grid", "grDevices", "graphics", "foreign", "datasets", "compiler", "codetools", "cluster", "class", "boot", "base"))
-install.packages(c("utils","tools","tcltk", "survival", "stats4", "stats", "splines", "spatial", "rpart", "parallel", "nnet", "nlme", "mgcv", "methods", "Matrix", "MASS", "lattice", "KernSmooth", "grid", "grDevices", "graphics", "foreign", "datasets", "compiler", "codetools", "cluster", "class", "boot", "base"))
-# For errors with latex, try:
-# tinytex::install_tinytex()
-```
-
 **Using package `BiocManager` to install required packages:**
 ```{r, biocInstall, eval=TRUE, echo=TRUE, include=TRUE, cache=TRUE, tidy=FALSE, message=FALSE}
 r <- getOption("repos")
 r["CRAN"] <- "http://cran.us.r-project.org"
 options(repos = r)
-
 if (!requireNamespace("BiocManager"))
     install.packages("BiocManager")
 BiocManager::install()
-
 library("BiocManager")
-.cran_packages <- c("cowplot", "data.table", "doParallel", "doSNOW","foreach", 
-                    "ggplot2", "knitr", "parallel", "rprojroot")
-.bioc_packages <- c("ape", "Biostrings", "dada2", 
-                    "DECIPHER", "phangorn", "phyloseq")
+.cran_packages <- c("cowplot", "data.table", "ggplot2", "knitr", "rprojroot")
+.bioc_packages <- c("BiocStyle", "Biostrings", "dada2", "ShortRead")
 .inst <- .cran_packages %in% installed.packages()
 if(any(!.inst)) {
    install.packages(.cran_packages[!.inst])
@@ -49,16 +37,14 @@ if(any(!.inst)) {
   BiocManager::install(.bioc_packages[!.inst], ask = FALSE)
 }
 ```
-
 **Load packages into session, and print package versions:**
 ```{r, showBiocPackages, echo=TRUE, eval=TRUE, include=TRUE, results='hold', cache=TRUE}
 sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
 ```
-      
-      
+
 ```{r sourcing_my_functions, echo=FALSE, eval=TRUE, include=FALSE, cache=TRUE}
-#Source our custom R scripts:    
-#For this we will use the rprojroot package to set the directory structures. This will help us when finding our files to source functions. We specify ours is an RStudio project. The root object contains a function that will help us locate our package R files regarless of our current working directory.
+# Source our custom R scripts:    
+# For this we will use the rprojroot package to set the directory structures. This will help us when finding our files to source functions. We specify ours is an RStudio project. The root object contains a function that will help us locate our package R files regarless of our current working directory.
 library("rprojroot")
 root <- rprojroot::is_rstudio_project
 scriptsPath <- root$make_fix_file(".")("R")
@@ -70,20 +56,24 @@ sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_dire
 analysis <- "ecobiomics/"
 sharedPathAn <- paste(sharedPath, analysis, sep = "")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
-startUpImage <- "ecobiomics_StartUp.RData"
 chptImageA <- "ecobiomics_16S.RData"
-chptImageB <- "ecobiomics_16S_2b.RData"
-load(paste(imageDirPath, startUpImage, sep = ""))
-load(paste(imageDirPath, chptImageA, sep = ""))
-load(paste(imageDirPath, chptImageB, sep = ""))
-save.image(paste(imageDirPath, chptImageB, sep = ""))
 ```
 
 **Load the saved image from Chapters 1 and 4a**, then save it as a separate image to retain environment data specific to the 16S processing and analysis workflow.
 ```{r, loadBaseImage, echo=TRUE, eval=FALSE, include=TRUE, results='hold'}
-load(paste(imageDirPath, startUpImage, sep = ""))
 load(paste(imageDirPath, chptImageA, sep = ""))
+chptImageB <- "ecobiomics_16S_2b.RData"
 save.image(paste(imageDirPath, chptImageB, sep = ""))
+```
+
+When re-starting a session, you can quickly load up the image by running the chunk below:
+```{r, quickImageLoad, echo=TRUE, eval=TRUE, include=TRUE, results='hold'}
+sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
+analysis <- "ecobiomics/"
+sharedPathAn <- paste(sharedPath, analysis, sep = "/")
+imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
+chptImageB   <- "ecobiomics_16S_2b.RData"
+load(paste(imageDirPath, chptImageB, sep = ""))
 ```
 
 7. Error learning.     
@@ -95,30 +85,31 @@ Here we begin the first DADA2-specific processing step: error-learning.  For ear
 filtFs <- metadatafiltPlate1$filtFwd
 filtRs <- metadatafiltPlate1$filtRev
 ```
+
 - Extract the names of the fastq files, and compare to ensure there are files for both forward and reverse reads. Once this is confirmed, assign the forward and reverse fastq file pairs the same sample name, using the forward reads as sample name template:
 ```{r, valNames1, echo=TRUE, eval=FALSE, cache=TRUE, tidy=FALSE, include=TRUE}
 sampleNamesF <- sapply(strsplit(basename(filtFs), "_F_filt.fastq.gz"), `[`, 1) 
 sampleNamesR <- sapply(strsplit(basename(filtRs), "_R_filt.fastq.gz"), `[`, 1)
-if(!identical(sampleNamesF, sampleNamesR)) 
-  stop ("Forward and reverse files do not match.")
+if(!identical(sampleNamesF, sampleNamesR)) stop ("Forward and reverse files do not match.")
 sampleNames   <- sampleNamesF
 names(filtFs) <- sampleNames
 names(filtRs) <- sampleNames
 ```
+
 - Set Rs random number generator:
 ```{r, randSeed1, echo=TRUE, eval=FALSE, cache=TRUE, include=TRUE}
 set.seed(100)
 ```
+
 - Learn forward and reverse error rates:
 ```{r, pool1Error, echo=TRUE, eval=FALSE, cache=TRUE, tidy=FALSE, include=TRUE}
 library("dada2")
 # Learn forward error rates:
-errF <- dada2::learnErrors(filtFs, nbases = 1e8, randomize = TRUE,
-                           multithread = TRUE, verbose = TRUE)
+errF <- dada2::learnErrors(filtFs, nbases = 1e8, randomize = TRUE, multithread = TRUE, verbose = TRUE)
 # Learn reverse error rates:
-errR <- dada2::learnErrors(filtRs, nbases = 1e8, randomize = TRUE,
-                           multithread = TRUE, verbose = TRUE)
+errR <- dada2::learnErrors(filtRs, nbases = 1e8, randomize = TRUE, multithread = TRUE, verbose = TRUE)
 ```
+
 We can visualise the estimated error rates as a sanity check:
 ```{r, plot1Errors, echo=TRUE, eval=TRUE, include=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, warning=FALSE}
 dada2::plotErrors(errF, nominalQ = TRUE)
@@ -132,13 +123,6 @@ ddFs <- vector("list", length(sampleNames))
 names(ddFs) <- sampleNames
 ddRs <- vector("list", length(sampleNames))
 names(ddRs) <- sampleNames
-
-# Run Cutadapt with multi-thread processing
-library("parallel")
-library("foreach")
-library("doParallel")
-library("doSNOW")
-
 for(sam in sampleNames) {
   cat("Processing:", sam, "\n")
     derepF <- dada2::derepFastq(filtFs[[sam]])
@@ -147,19 +131,18 @@ for(sam in sampleNames) {
     derepR <- dada2::derepFastq(filtRs[[sam]])
     ddR    <- dada2::dada(derepR, err = errR, multithread = TRUE, verbose = TRUE)
     ddRs[[sam]] <- ddR
-    merger <- dada2::mergePairs(ddF, derepF, ddR, derepR,
-                         maxMismatch = 1, verbose = TRUE)
+    merger <- dada2::mergePairs(ddF, derepF, ddR, derepR, maxMismatch = 1, verbose = TRUE)
     mergers[[sam]] <- merger
 }
 rm(derepF); rm(derepR)
 save.image(paste(imageDirPath, chptImageB, sep = ""))
 ```
+
 We need to remove those samples that have no remaining reads:
 ```{r, remLostSams, echo=TRUE, eval=TRUE, comment=NA, cache=TRUE, include=TRUE}
 dfToKeep    <- mergers[sapply(mergers, function(x) any(x$abundance > 0))]
 mergersKept <- dfToKeep
 samNamesKeptMergers <- names(mergersKept)
-
 # See which samples were dropped because they had no remaining reads:
 names(mergers[sapply(mergers, function(x) all(x$abundance == 0))])
 ```
@@ -168,7 +151,7 @@ Construct sequence table and print it to file:
 ```{r, makeSeqTbl1, eval=FALSE, echo=-5, include=TRUE, cache=TRUE, message=FALSE, tidy=FALSE}
 seqTabKeptMergers <- dada2::makeSequenceTable(mergersKept)
 saveRDS(seqTabKeptMergers, paste(sharedPathReg, region,
-                                 "_", metadataRegion$SeqPlate[1], 
+                                 "_", metadatafiltPlate1$SeqPlate[1], 
                                  "_seqtab_KeptSamples.rds", sep = ""))
 rm(seqTabKeptMergers)
 save.image(paste(imageDirPath, chptImageB, sep = ""))
@@ -205,13 +188,10 @@ errF <- dada2::learnErrors(filtFs, nbases = 1e8, randomize = TRUE,
 errR <- dada2::learnErrors(filtRs, nbases = 1e8, randomize = TRUE,
                            multithread = TRUE, verbose = TRUE)
 
+save.image(paste(imageDirPath, chptImageB, sep = ""))
+
 # Visualise the estimated error rates as a sanity check:
 dada2::plotErrors(errF, nominalQ = TRUE)
-```
-
-
-```{r}
-save.image(paste(imageDirPath, "plate_4_", chptImageB, sep = ""))
 ```
 
 - drepDadaMergePool2. Sample inference and merging of paired-end reads:
@@ -222,13 +202,6 @@ ddFs <- vector("list", length(sampleNames))
 names(ddFs) <- sampleNames
 ddRs <- vector("list", length(sampleNames))
 names(ddRs) <- sampleNames
-
-# Run Cutadapt with multi-thread processing
-library("parallel")
-library("foreach")
-library("doParallel")
-library("doSNOW")
-
 for(sam in sampleNames) {
   cat("Processing:", sam, "\n")
     derepF <- dada2::derepFastq(filtFs[[sam]])
@@ -237,19 +210,18 @@ for(sam in sampleNames) {
     derepR <- dada2::derepFastq(filtRs[[sam]])
     ddR    <- dada2::dada(derepR, err = errR, multithread = TRUE, verbose = TRUE)
     ddRs[[sam]] <- ddR
-    merger <- dada2::mergePairs(ddF, derepF, ddR, derepR,
-                         maxMismatch = 1, verbose = TRUE)
+    merger <- dada2::mergePairs(ddF, derepF, ddR, derepR, maxMismatch = 1, verbose = TRUE)
     mergers[[sam]] <- merger
 }
 rm(derepF); rm(derepR)
-save.image(paste(imageDirPath, "plate_4_", chptImageB, sep = ""))
+save.image(paste(imageDirPath, chptImageB, sep = ""))
 
 # We need to remove those samples that have no remaining reads:
 dfToKeep    <- mergers[sapply(mergers, function(x) any(x$abundance > 0))]
 mergersKept <- dfToKeep
 samNamesKeptMergers <- names(mergersKept)
 
-save.image(paste(imageDirPath, "plate_4_", chptImageB, sep = ""))
+save.image(paste(imageDirPath, chptImageB, sep = ""))
 
 # See which samples were dropped because they had no remaining reads:
 names(mergers[sapply(mergers, function(x) all(x$abundance == 0))])
@@ -261,8 +233,7 @@ seqTabKept <- makeSequenceTable(mergersKept)
 saveRDS(seqTabKept, paste(sharedPathReg, region,
                           "_plate_", metadatafiltPlate4$SeqPlate[1], 
                           "_seqtab_KeptSamples.rds", sep = ""))
-rm(seqTabKept)
-save.image(paste(imageDirPath, "plate_4_", chptImageB, sep = ""))
+save.image(paste(imageDirPath, chptImageB, sep = ""))
 ```
 
 #################################################################################################    
@@ -295,23 +266,21 @@ save.image(paste(imageDirPath, chptImageB, sep = ""))
 
 Let's see how many sequences we lost after removing chimeric sequences:
 ```{r, sumsSesChim, echo=-1, eval=TRUE, cache=TRUE, warning=FALSE, message=FALSE, comment=NA, include=TRUE}
-load(paste(imageDirPath, chptImageB, sep = ""))
-sum(seqTabKept)/sum(stAllKept)
-# [1] 0.9225818
+1-sum(seqTabKept)/sum(stAllKept)
+# [1] 0.07741821
 ```
 Good - we lost less than 8% when removing chimeric sequences. Also - notice that this number doesn't change if we compare the set with and without the samples with no reads removed, which is what we expect.          
-     
-Note that the samples we removed from the mergers dataframe list are not included in the summary table since they had no remaining reads by the end of read processing. 
-```{r, prntLostSmplsCnts, eval=TRUE, echo=TRUE, cache=TRUE, comment=NA, include=TRUE}
-# Show the samples that have no remaining reads by the end of processing:
-subset(sampleNames, !(sampleNames %in% sampleNamesKept))
+          
+```{r}
+# Gather the same names from the seqTabKept matrix - this will have the sample names of both plate 1 and plate 4 merged together
+samples <- row.names(seqTabKept)
 ```
+
 
 Generate a final metadata table that includes only those samples that had reads surviving the processing steps: 
 ```{r, newMtdataTbl, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
 library("data.table")
 data.table::setkey(metadatafilt, "LibraryName")
-samples <- sampleNamesKept
 metadataFinal <- metadatafilt[samples]
 
 # Write our final metadata table to a csv file:
@@ -370,17 +339,16 @@ write.table(asvTax, paste(sharedPathReg, "ASVs_taxonomySpp.txt", sep = ""),
 
 13. Construct phylogenetic tree   
 Phylogenetic relatedness is commonly used to inform downstream analyses, especially the calculation of phylogeny-aware distances between microbial communities. The DADA2 sequence inference method is reference-free, so we must construct the phylogenetic tree relating the inferred sequence variants de novo. We begin by performing a multiple-alignment using the DECIPHER R package (Wright 2015).   
-```{r, mkTree, echo=-6, eval=FALSE, include=TRUE, tidy=FALSE}
+```{r, mkTree, echo=-5, eval=FALSE, include=TRUE, tidy=FALSE}
 library("DECIPHER")
 seqs        <- dada2::getSequences(seqTabKept)
 names(seqs) <- seqs # This propagates to the tip labels of the tree
-algn <- DECIPHER::AlignSeqs(Biostrings::DNAStringSet(seqs), 
-                            anchor = NA, verbose = TRUE)
+algn <- DECIPHER::AlignSeqs(Biostrings::DNAStringSet(seqs), anchor = NA, verbose = TRUE)
 save.image(paste(imageDirPath, chptImageB, sep = ""))
 ```
 
 The phangorn R package is then used to construct a phylogenetic tree. Here we first construct a neighbor-joining tree, and then fit a GTR+G+I (Generalized time-reversible with Gamma rate variation) maximum likelihood tree using the neighbor-joining tree as a starting point.
-```{r, phangAlignFitGTR, echo=-17, eval=FALSE, include=TRUE, tidy=FALSE}
+```{r, phangAlignFitGTR, echo=-16, eval=FALSE, include=TRUE, tidy=FALSE}
 library("phangorn")
 phangAlign <- phangorn::phyDat(as(algn, "matrix"), type = "DNA")
 phangorn::write.phyDat(phangAlign, 
@@ -391,14 +359,14 @@ treeNJ <- phangorn::NJ(dm) # Note, tip order != sequence order
 fit    <- phangorn::pml(treeNJ, data = phangAlign)
 fitGTR <- update(fit, k= 4, inv = 0.2)
 ape::write.tree(fitGTR$tree, file = paste(sharedPathReg, "pre_GTR.phy", sep = ""))
-
 fitGTR <- phangorn::optim.pml(fitGTR, model = "GTR", optInv = TRUE, 
                               optGamma = TRUE, rearrangement = "NNI", 
                               control = pml.control(trace = 0))
 ape::write.tree(fitGTR$tree, file = paste(sharedPathReg, "GTR.phy", sep = ""))
 detach("package:phangorn", unload=TRUE)
-save.image(paste(imageDirPath, chptImageB, sep = ""))
+save.image(paste(imageDirPath, "fitGTR_", chptImageB, sep = ""))
 ```
+
 Use this chunk to run the above 2 chunks as qsubs on the biocluster instead of interactively.
 ```{r, phangAlignFitGTRQsub, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
 prefix <- paste("B_fitGTRTree_R_mergedSeqPlatesData", region, sep = "_")
@@ -411,17 +379,17 @@ cmd <- paste("load('", paste(imageDirPath, chptImageB, sep = ""), "')\n",
              "save.image('", paste(imageDirPath, 
                                    "fitGTR_", chptImageB, sep = ""), "')\n",
              'phangAlign <- phangorn::phyDat(as(algn, "matrix"), type = "DNA")\n',
-             'phangorn::write.phyDat(phangAlign,
-                                     file = paste(sharedPathReg, 
-                                     "alignedSeqs.fasta", sep = ""),
-                                     format = "fasta")\n',
+             'phangorn::write.phyDat(phangAlign, 
+                                      file = paste(sharedPathReg, 
+                                     "alignedSeqs.fasta", sep = ""), 
+                                      format = "fasta")\n',
              'dm     <- phangorn::dist.ml(phangAlign)\n',
              'treeNJ <- phangorn::NJ(dm)\n',
              'fit    <- phangorn::pml(treeNJ, data = phangAlign)\n',
              'fitGTR <- update(fit, k = 4, inv = 0.2)\n',
              "ape::write.tree(fitGTR$tree, file = '", 
                          paste(sharedPathReg, "pre_GTR.phy", 
-                               sep = ""), "')\n",
+                              sep = ""), "')\n",
              "save.image('", paste(imageDirPath, "fitGTR_", 
                                    chptImageB, sep = ""), "')\n",
              'fitGTR <- phangorn::optim.pml(fitGTR, model = "GTR", 
@@ -432,15 +400,15 @@ cmd <- paste("load('", paste(imageDirPath, chptImageB, sep = ""), "')\n",
                               paste(sharedPathReg, "GTR.phy", sep = ""), "')\n",
              "save.image('", paste(imageDirPath, 
                                    "fitGTR_", chptImageB, sep = ""), "')\n",
-             'detach("package:phangorn", unload = TRUE)',
+             'detach("package:phangorn", unload = TRUE)', 
              sep = "")
 MakeRQsubs(cmd, prefix)
 ```
-*** Over here!!! 29April2020
+
 If the above chunk was used to align and get the tree, update the environment once it is done so that the final fitGTR can be updated. To do this, simply load the image that was written in the qsub script in the above chunk.
 ```{r, echo=-2, eval=FALSE, include=TRUE, tidy=FALSE}
 load(paste(imageDirPath, "fitGTR_", chptImageB, sep = ""))
-# save.image(paste(imageDirPath, chptImageB, sep = ""))
+# load("/isilon/cfia-ottawa-fallowfield/users/girouxeml/GitHub_Repos/r_environments/ecobiomics/fitGTR_ecobiomics_16S_2b.RData")
 ```
 
 14. Combine data into a phyloseq object     
@@ -448,15 +416,11 @@ Collect the data from the sequence table and the metadata table such that they c
 ```{r, makeDFforPhyloseq, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
 sampleDatadf <- as.data.frame(metadataFinal)
 sampleDatadf$SampleID <- sampleDatadf$LibraryName
-
 all(rownames(seqTabKept) %in% sampleDatadf$SampleID)
-
 rownames(sampleDatadf) <- sampleDatadf$SampleID
 keepCols <- c("Region", "Sample", "Provider", "Experiment", 
               "ExtractionKit", "LibraryName", "SampleID") 
-
 sampleDataDF <- sampleDatadf[rownames(seqTabKept), keepCols]
-
 # write the sample data dataframe to csv:
 write.table(sampleDataDF, 
             paste(sharedPathReg, sampleTblName, "_forPhyloseq.txt", sep = ""),
@@ -470,209 +434,26 @@ library("phyloseq")
 phySeq   <- phyloseq::phyloseq(otu_table(seqTabKept, taxa_are_rows = FALSE),
                                sample_data(sampleDataDF), 
                                tax_table(taxTab))
-
 # phyloseq object that DOES include tree:
 ps <- phyloseq::phyloseq(otu_table(seqTabKept, taxa_are_rows = FALSE),
                          sample_data(sampleDataDF), 
                          tax_table(taxTab), phy_tree(fitGTR$tree))
 ```
+
 Finally, save the image for this chapter:
-```{r, finalSave, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
+```{r, saveFitEnv, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
 save.image(paste(imageDirPath, "fitGTR_", chptImageB, sep = ""))
 ```
 
-
-Construct sequence table and print it to file:
-```{r, makeSeqTbl3, eval=FALSE, echo=-5, include=TRUE, cache=TRUE, message=FALSE, tidy=FALSE}
-seqTabKeptMergers <- dada2::makeSequenceTable(mergersKept)
-saveRDS(seqTabKeptMergers, paste(sharedPathReg, region,
-                                 "_", metadataRegion$SeqPlate[1], 
-                                 "_seqtab_KeptSamples.rds", sep = ""))
-save.image(paste(imageDirPath, "plate_4_fitGTR_", chptImageB, sep = ""))
-```
-
-
-
-
-
-11. assignTax. Assign taxonomy - Unite database for 16S sequences:
-```{r, assignTax2, echo=-3, eval=FALSE}
-taxTab16S <- assignTaxonomy(seqTabKept, refFasta = uniteSetUnzip,
-                            multithread = TRUE, verbose = TRUE)
-save.image(paste(imageDirPath, chptImage, sep = ""))
-```
-\pagebreak
-12. Inspect the taxonomic assignments:
-```{r, taxaPrint2, echo=TRUE, eval=TRUE, cache=TRUE, comment=NA}
-taxaPrint <- taxTab16S  # Removing sequence rownames for display only
-rownames(taxaPrint) <- NULL
-head(taxaPrint)
-```
-
-Extract the standard goods from R:
-```{r, extrctRdata2, echo=TRUE, eval=FALSE}
-# Let's give our sequence headers more manageable names (ASV_1, ASV_2,...)
-asvSeqs <- colnames(seqTabKept)
-asvHeaders <- vector(dim(seqTabKept)[2], mode = "character")
-
-for (i in 1:dim(seqTabKept)[2]){
-  asvHeaders[i] <- paste(">ASV", i, sep = "_")
-}
-
-# Making and writing out a fasta of our final ASV sequences:
-asvFasta <- c(rbind(asvHeaders, asvSeqs))
-write(asvFasta, paste(sharedPathReg, "ASVs.fa", sep = ""))
-
-# count table:
-asvTab <- t(seqTabKept)
-row.names(asvTab) <- sub(">", "", asvHeaders)
-write.table(asvTab, paste(sharedPathReg, "ASVs_counts.txt", sep = ""),
-            sep = "\t", quote = FALSE, col.names = NA)
-
-# tax table:
-asvTax <- taxTab16S
-row.names(asvTax) <- sub(">", "", asvHeaders)
-write.table(asvTax, paste(sharedPathReg, "ASVs_taxonomy.txt", sep = ""),
-            sep = "\t", quote = FALSE, col.names = NA)
-```
-
-13. Construct phylogenetic tree   
-Phylogenetic relatedness is commonly used to inform downstream analyses, especially the calculation of phylogeny-aware distances between microbial communities. The DADA2 sequence inference method is reference-free, so we must construct the phylogenetic tree relating the inferred sequence variants de novo. We begin by performing a multiple-alignment using the DECIPHER R package (Wright 2015).   
-```{r, mkTree2, echo=TRUE, eval=FALSE}
-seqs        <- getSequences(seqTabKept)
-names(seqs) <- seqs # This propagates to the tip labels of the tree
-algn16S     <- AlignSeqs(DNAStringSet(seqs), anchor = NA, verbose = TRUE)
-save.image(paste(imageDirPath, chptImage, sep = ""))
-```
-
-The phangorn R package is then used to construct a phylogenetic tree. Here we first construct a neighbor-joining tree, and then fit a GTR+G+I (Generalized time-reversible with Gamma rate variation) maximum likelihood tree using the neighbor-joining tree as a starting point.
-```{r, phangAlignFitGTR2, echo=TRUE, eval=FALSE}
-library(phangorn)
-phangAlign <- phyDat(as(algn16S, "matrix"), type = "DNA")
-
-dm     <- dist.ml(phangAlign)
-treeNJ <- NJ(dm) # Note, tip order != sequence order
-fit    <- pml(treeNJ, data = phangAlign)
-fitGTR <- update(fit, k= 4, inv = 0.2)
-
-write.tree(fitGTR$tree, file = paste(sharedPathReg, "pre_GTR.phy", sep = ""))
-
-fitGTR <- optim.pml(fitGTR, model = "GTR", 
-                    optInv = TRUE, optGamma = TRUE,
-                    rearrangement = "NNI", 
-                    control = pml.control(trace = 0))
-
-write.tree(fitGTR$tree, file = paste(sharedPathReg, "GTR.phy", sep = ""))
-detach("package:phangorn", unload=TRUE)
-save.image(paste(imageDirPath, chptImage, sep = ""))
-```
-
-
-The following chunk runs the above 2 chunks as qsubs on the biocluster, as running these interactively can take a very long time and are more likely due to fail due to interrupted network connections at some point while running. Setting up the command is a bit tricky. All the packages and environment variables need to be loaded. Also, there is a little bit of a game managing the single and double quotes so that all the commands print correctly to the RScript that is generated.
-```{r, phangAlignFitGTRQsub2, echo=TRUE, eval=FALSE, tidy=FALSE}
-# To run the optim.pml via qsub, run:
-prefix <- "B_fitGTRTree_R"
-cmd <- paste("load('", paste(imageDirPath, chptImage, sep = ""), "')\n",
-             'library(phangorn)\n',
-             'phangAlign <- phyDat(as(algn16S, "matrix"), type = "DNA")\n',
-             'seqs       <- getSequences(seqTabKept)\n',
-             'names(seqs) <- seqs\n',
-             'algn16S     <- AlignSeqs(DNAStringSet(seqs), 
-                                       anchor = NA, verbose = TRUE)\n',
-             "save.image('", paste(imageDirPath, 
-                                   "fitGTR_", chptImage, sep = ""), "')\n",
-             'dm     <- dist.ml(phangAlign)\n',
-             'treeNJ <- NJ(dm)\n',
-             'fit    <- pml(treeNJ, data = phangAlign)\n',
-             'fitGTR <- update(fit, k = 4, inv = 0.2)\n',
-             "write.tree(fitGTR$tree, file = '", 
-                         paste(sharedPathReg, "pre_GTR.phy", 
-                               sep = ""), "')\n",
-             "save.image('", paste(imageDirPath, "fitGTR_", 
-                                   chptImage, sep = ""), "')\n",
-             'fitGTR <- optim.pml(fitGTR, model = "GTR", 
-                                  optInv = TRUE, optGamma = TRUE, 
-                                  rearrangement = "NNI", 
-                                  control = pml.control(trace = 0))\n',
-             "write.tree(fitGTR$tree, file = '", 
-                         paste(sharedPathReg, "GTR.phy", sep = ""), "')\n",
-             "save.image('", paste(imageDirPath, 
-                                   "fitGTR_", chptImage, sep = ""), "')\n",
-             'detach("package:phangorn", unload = TRUE)',
-             sep = "")
-cmd
-MakeRQsubs(cmd, prefix)
-```
-
-If the above chunk was used to align and get the tree, update the environment once it is done so that the final fitGTR can be updated. To do this, simply load the image fitGTR_ecobiomics_16S.RData - or however it was written in the qsub script written in the above chunk. Then we save the chapter image again.
-```{r, echo=TRUE, eval=FALSE}
-load(paste(imageDirPath, "fitGTR_", chptImage, sep = ""))
-save.image(paste(imageDirPath, chptImage, sep = ""))
-```
-
-We need to update our metadata table to only include samples that have reads left after processing. Recall that we filtered those with no reads after merging, and we also saw this in the list of names in our summary table that we generated to track the reads surviving the different steps during processing. We can look at the surviving samples and confirm that the samples saved after merging are indeed the same as those that had greater than 0 reads remaining in our summary table:
-```{r,chkSamTest, echo=TRUE, eval=4, comment=NA}
-samNamesKept # list of samples in summary table with final reads > 0
-samNamesKeptMergers # names of data tables kept in mergersKept
-# Check to see that the two lists are identical:
-identical(samNamesKept, samNamesKeptMergers)
-```
-
-Generate a final metadata table that includes only those samples that had reads surviving the processing steps: 
-```{r, newMtdataTbl2, echo=TRUE, eval=FALSE}
-library(data.table)
-setkey(metadatafilt, "LibraryName")
-samples <- samNamesKept
-metadataFinal <- metadatafilt[samples]
-
-# Write our final metadata table to a csv file:
-sampleTblName <- "final_processed_metadata"
-write.table(metadataFinal, 
-            paste(sharedPathReg, sampleTblName, ".csv", sep = ""), 
-            sep = ",", row.names = FALSE, quote= FALSE)
-```
-
-14. Combine data into a phyloseq object:
-```{r, makePhyloseq2, echo=-1, eval=FALSE}
-library(data.table)
-sampleData <- as.data.frame(metadataFinal)
-sampleData$SampleID <- sampleData$LibraryName
-
-all(rownames(seqTabKept) %in% sampleData$SampleID)
-
-rownames(sampleData) <- sampleData$SampleID
-keepCols <- c("Region", "Sample", "Provider",
-              "Experiment", "ExtractionKit",
-              "LibraryName", "SampleID") 
-
-sampleData <- sampleData[rownames(seqTabKept), keepCols]
-
-# write the sample data dataframe to csv:
-write.table(sampleData, 
-            paste(sharedPathReg, sampleTblName, ".txt", sep = ""),
-            sep = "\t",
-            quote = FALSE,
-            col.names = NA)
-
-# phyloseq object that does not include tree:
-phySeq   <- phyloseq(otu_table(seqTabKept, taxa_are_rows = FALSE),
-                     sample_data(sampleData), 
-                     tax_table(taxTab16S))
-
-# phyloseq object that DOES include tree:
-ps    <- phyloseq(otu_table(seqTabKept, taxa_are_rows = FALSE),
-                  sample_data(sampleData), 
-                  tax_table(taxTab16S), phy_tree(fitGTR$tree))
-
-save.image(paste(imageDirPath, chptImage, sep = ""))
-```
-
-
-```{r, echo=FALSE, eval=FALSE, include=FALSE}
-summary(taxaPrint)
-is.data.table(taxaPrint)
-is.data.frame(taxaPrint)
-is.matrix(taxaPrint)
-typeof(taxaPrint)
-attributes(taxaPrint)
+The only variable we need to save from the fitGTR image is "ps". Save this individual variable, and then load it with the chptImageB, without all the intermediate varibales.
+```{r, finalSave, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
+# Save the ps variable:
+save(ps, file = paste(imageDirPath, "16S_ps.Rdata", sep = ""))
+# Clear the global environment, including hidden variables:
+rm(list = ls(all.names = TRUE))
+# Load the chptImageB and the ps variable:
+load("/isilon/cfia-ottawa-fallowfield/users/girouxeml/GitHub_Repos/r_environments/ecobiomics/ecobiomics_16S_2b.RData")
+load(paste(imageDirPath, "16S_ps.Rdata", sep = ""))
+# Save the chptImageB again so it includes the ps variable:
+save.image(paste(imageDirPath, chptImageB, sep = ""))
 ```

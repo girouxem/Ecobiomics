@@ -184,10 +184,8 @@ Create a directory for the cutadapted fastq files, only if it doesn't already ex
 cutAdaptDir <- file.path(processedFastq, "B_cutadapt", sep = "")
 if(!dir.exists(cutAdaptDir)) dir.create(cutAdaptDir)
 
-cutFqs <- paste(cutAdaptDir, 
-                metadataRegion$LibraryName, "_Fcut.fastq.gz", sep = "")
-cutRqs <- paste(cutAdaptDir, 
-                metadataRegion$LibraryName, "_Rcut.fastq.gz", sep = "")
+cutFqs <- paste(cutAdaptDir, metadataRegion$LibraryName, "_Fcut.fastq.gz", sep = "")
+cutRqs <- paste(cutAdaptDir, metadataRegion$LibraryName, "_Rcut.fastq.gz", sep = "")
 ```
 
 Now we can proceed to using cutadapt to remove primer sequences at the ends of our reads. See chapter2_ITSprocessing.Rmd for more details on Cutadapt flag parameters.     
@@ -231,10 +229,8 @@ filtPathFinal <- file.path(processedFastq, "C_finalProcessed")
 if(!dir.exists(filtPathFinal)) dir.create(filtPathFinal)
 
 # Create output filenames for the final filtered and trimmed fastq files:
-filtFwd <- paste(filtPathFinal, "/", 
-                 metadataRegion$LibraryName, "_F_filt.fastq.gz", sep = "")
-filtRev <- paste(filtPathFinal, "/",
-                 metadataRegion$LibraryName, "_R_filt.fastq.gz", sep = "")
+filtFwd <- paste(filtPathFinal, "/", metadataRegion$LibraryName, "_F_filt.fastq.gz", sep = "")
+filtRev <- paste(filtPathFinal, "/", metadataRegion$LibraryName, "_R_filt.fastq.gz", sep = "")
 ```
 For this dataset, we will use standard filtering paraments: maxN=0 (DADA2 requires sequences contain no Ns), truncQ = 2,  rm.phix = TRUE and maxEE=2. The maxEE parameter sets the maximum number of “expected errors” allowed in a read, which is a better filter than simply averaging quality scores.      
       

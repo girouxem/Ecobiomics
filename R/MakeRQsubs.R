@@ -4,10 +4,10 @@
 # Linux command needs to be done on several data files)
 
 MakeRQsubs <- function(cmd, prefix, suffix = ".sub", node =1) {
-  dir.create(paste(sharedPathAn, prefix, sep = ""), 
+  dir.create(paste(sharedPathAn, prefix, sep = "/"), 
              showWarnings = TRUE, 
              recursive = FALSE)
-  outPath <- paste(sharedPathAn, prefix, "/", sep="")
+  outPath <- paste(sharedPathAn, "/", prefix, "/", sep= "")
   for(k in 1:length(cmd)) {
     cat(paste("#!/opt/R/bin/Rscript \n",
               "#$ -S /opt/R/bin/Rscript
