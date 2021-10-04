@@ -106,7 +106,7 @@ silvaSet  <- "silva_nr_v132_train_set.fa"
 silvaSpp  <- "silva_species_assignment_v132.fa"
 gGenesSet <- "gg_13_8_train_set_97.fa"
 uniteSet  <- "unite"
-coiSetDir <- "CO1_v3.2"
+coiSetDir <- "CO1Classifier-4"
 
 rdp16SsetPath <- paste(dada2DBs, rdp16Sset, sep = "/")
 rdp16SsppPath <- paste(dada2DBs, rdp16Sspp, sep = "/")    
@@ -114,7 +114,7 @@ silvaSetPath  <- paste(dada2DBs, silvaSet, sep = "/")
 silvaSppPath  <- paste(dada2DBs, silvaSpp, sep = "/")    
 gGenesSetPath <- paste(dada2DBs, gGenesSet, sep = "/")    
 uniteSetPath  <- paste(dada2DBs, uniteSet, sep = "/") 
-coiSetDirPath <- paste(dbsPath, coiSetDir, sep = "/")
+coiSetDirPath <- paste(dada2DBs, coiSetDir, sep = "/")
 
 # Note: unzip and then paste the path to the sh file:
 system2(paste("unzip ", uniteSetPath, ".zip", sep = ""))
