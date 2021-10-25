@@ -1,0 +1,230 @@
+---
+title: "ecobiomics_16S_water"
+author: "Emily Giroux"
+date: "10/8/2021"
+output: pdf_document
+fontsize: 11pt
+geometry: margin=1in
+urlcolor: blue
+header-includes: \usepackage{xcolor}
+---
+
+```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
+#Set the global options for knitr
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy = TRUE, fig.align='center',
+               cache=FALSE, collapse=TRUE, echo=FALSE, eval=FALSE, include=FALSE,
+               message=FALSE, quietly=TRUE, results='hide', warn.conflicts=FALSE, 
+               warning=FALSE)
+```
+
+**Using package `BiocManager` to install required packages:**
+```{r, biocInstall, eval=TRUE, echo=FALSE, include=TRUE, cache=TRUE, tidy=FALSE, message=FALSE}
+r <- getOption("repos")
+r["CRAN"] <- "http://cran.us.r-project.org"
+options(repos = r)
+
+if (!requireNamespace("BiocManager"))
+    install.packages("BiocManager")
+BiocManager::install()
+
+library("BiocManager")
+.cran_packages <- c("cowplot", "data.table", "ggplot2", "knitr", "rprojroot")
+.bioc_packages <- c("BiocStyle", "Biostrings", "dada2", "phyloseq",
+                    "ShortRead")
+.inst <- .cran_packages %in% installed.packages()
+if(any(!.inst)) {
+   install.packages(.cran_packages[!.inst])
+}
+.inst <- .bioc_packages %in% installed.packages()
+if(any(!.inst)) {
+  BiocManager::install(.bioc_packages[!.inst], ask = FALSE)
+}
+```
+
+**Load packages into session, and print package versions:**
+```{r, showBiocPackages, echo=FALSE, eval=TRUE, include=TRUE, results='hold', cache=TRUE}
+sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
+```
+
+Source our custom R scripts:    
+For this we will use the rprojroot package to set the directory structures. This will help us when finding our files to source functions. We specify ours is an RStudio project. The root object contains a function that will help us locate our package R files regarless of our current working directory.
+```{r sourcing_my_functions, echo=FALSE, eval=TRUE, include=FALSE, cache=TRUE}
+library("rprojroot")
+root <- rprojroot::is_rstudio_project
+scriptsPath <- root$make_fix_file(".")("R")
+scripts  <- dir(root$find_file("R", path = root$find_file()))
+scriptsl <- paste(scriptsPath, scripts, sep = "//")
+lapply(scriptsl, source)
+```
+
+Record the path to the environment images directory:
+```{r importChptImage, echo=TRUE, eval=TRUE, include=FALSE, cache=TRUE}
+sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
+analysis <- "ecobiomics/"
+sharedPathAn <- paste(sharedPath, analysis, sep = "")
+imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
+```
+
+Recall from Chapter 4b 16S DADA2-specific processing step: The only variables we need from the previous environment for this analysis chapter are the "ps" variable from the fitGTR image, which we re-saved in the chptImageB variable:
+```{r}
+chptImageB <- "ecobiomics_16S_2b.RData"
+load(paste(imageDirPath, chptImageB, sep = ""))
+```
+
+Fresh image for this new chapter, and image to continue saving going forward:
+```{r}
+chptImage    <- "ecobiomics_16S_analysis_water.RData"
+save.image(paste(imageDirPath, chptImage, sep = ""))
+```
+
+# Importing required data:    
+# 1. ps variable from 16S DADA2 processing chapter "loadingChptImage"        
+# 2. Import sample metadata "importingSampleMetadata"     
+
+
+Pre-processing data for analysis:    
+1. Extract 16S data specific to water samples "subsetWaterPSdata"    
+2. Assign ASV names to ASV DNA sequences for readability "assignASVshortNames"    
+    
+    
+Bacteria in Water Samples Across Extraction Kits
+```{r subsetWaterPSdata}
+psWater <- subset_samples(ps, Sample=="water")
+```
+It is more convenient to use short names for our ASVs (e.g. ASV21) rather than the full DNA sequence when working with some of the tables and visualizations from phyloseq, but we want to keep the full DNA sequences for other purposes like merging with other datasets or indexing into reference databases like the Earth Microbiome Project. For that reason we’ll store the DNA sequences of our ASVs in the refseq slot of the phyloseq object, and then rename our taxa to a short string. That way, the short new taxa names will appear in tables and plots, and we can still recover the DNA sequences corresponding to each ASV as needed with refseq(ps).
+```{r assignASVshortNames}
+dna <- Biostrings::DNAStringSet(taxa_names(psWater))
+names(dna) <- taxa_names(psWater)
+psWater <- merge_phyloseq(psWater, dna)
+taxa_names(psWater) <- paste0("ASV", seq(ntaxa(psWater)))
+psWater
+```
+
+Here is if we filter based on having to know the genus:
+```{r, testCmds2, eval=FALSE, include=FALSE, echo=-5, message=FALSE, comment=NA}
+ps2Genus <- subset_taxa(psWater, !is.na(Genus) & !Genus %in% c("", "uncharacterized"))
+rank_names(ps2Genus)
+table(tax_table(ps2Genus)[, "Genus"], exclude = NULL)
+```
+
+Generate a table that shows the prevalence of genera present across water samples:    
+Prevalence in the dataset is defined here as the number of samples in which a taxa appears at least once.
+```{r}
+prevDfWater <- apply(X = otu_table(ps2Genus),
+                     MARGIN = ifelse(taxa_are_rows(ps2Genus), yes = 1, no = 2),
+                     FUN = function(x){sum(x>0)})
+
+prevDfWater <- data.frame(Prevalence = prevDfWater,
+                          TotalAbundance = taxa_sums(ps2Genus),
+                          tax_table(ps2Genus))
+
+# Are there genera that are comprised of mostly low-prevalence features? Compute the total and average prevalences of the features in each genus.
+prevTblGenWater <- plyr::ddply(prevDfWater, "Genus", function(df1){cbind(mean(df1$Prevalence), sum(df1$Prevalence), mean(df1$Prevalence)/nsamples(ps2Genus)*100)})
+colnames(prevTblGenWater) <- c("Genus", "Mean", "TotalASVprevalence", "PercentOfSamples")
+prevTblGenWater
+
+prevTblGenWater <- plyr::ddply(prevDfWater, "Genus", function(df1){cbind(mean(df1$Prevalence), 
+                                                                         sum(df1$Prevalence), 
+                                                                         sum(df1$Prevalence)/mean(df1$Prevalence), 
+                                                                         mean(df1$Prevalence)/sum(df1$Prevalence)*nsamples(ps2Genus))})
+
+colnames(prevTblGenWater) <- c("Genus", "MeanASVAcrossSamples", "TotalPrevalence", "TotalASVInData", "NumberSamplesWithASV")
+head(prevTblGenWater)
+prevTblGenWater[order(-prevTblGenWater$NumberSamplesWithASV),]
+```
+
+Remove low-abundance genera that appear in less than 10% of the mean number of samples by sample type: 
+```{r}
+library("dplyr")
+# How many samples represent 10% of total number of samples?
+nsamples(ps2Genus) # 39
+unique(sample_data(ps2Genus)$ExtractionKit)
+x <- aggregate(data.frame(SampleSize = sample_data(ps2Genus)$ExtractionKit), list(ExtractionKit = sample_data(ps2Genus)$ExtractionKit), length)
+prevFilter <- mean(x$SampleSize)*0.1
+
+# When getting prevalence filter, set it to be the number that is 10% of the mean number of samples by sample type
+arrange(filter(prevTblGenWater, TotalPrevalence > prevFilter))
+
+# Filter-out low-abundance genera that appear in less than the value of the prevalence fitler "prevFilter" calculated above:
+genera <- subset(prevTblGenWater, prevTblGenWater$TotalPrevalence > prevFilter)
+ps2GenusFiltered    <- subset_taxa(ps2Genus, Genus %in% genera$Genus)
+rank_names(ps2GenusFiltered)
+table(tax_table(ps2GenusFiltered)[, "Genus"])
+tax_table(ps2GenusFiltered)
+```
+
+Taxa prevalence versus total counts after filtering. Each point is a different taxa. Exploration of the data in this way is often useful for selecting filtering parameters, like the minimum prevalence criteria we will used to filter the data above.
+```{r}
+prevdf1 = subset(prevDfWater, Genus %in% get_taxa_unique(ps2GenusFiltered, "Genus"))
+ggplot(prevdf1, aes(TotalAbundance, Prevalence / nsamples(psWater),color=Genus)) +
+ # Include a guess for parameter
+ geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) + geom_point(size = 2, alpha = 0.7) +
+ scale_x_log10() + xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
+ facet_wrap(~Genus) + theme(legend.position="none")
+```
+
+```{r}
+head(taxa_names(ps2GenusFiltered))
+head(tax_table(ps2GenusFiltered)[,6])
+table(tax_table(ps2GenusFiltered)[,6])
+```
+
+How many genera would be present after filtering?
+```{r}
+length(get_taxa_unique(ps2GenusFiltered, taxonomic.rank = "Genus"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*** Over here!!!! 18Oct2021     
+      
+Now lets filter out samples (outliers and low performing samples)
+Do some simple ordination looking for outlier samples, first we variance stabilize the data with a log transform, then perform PCoA using bray’s distances
+```{r}
+logt          <- phyloseq::transform_sample_counts(ps2GenusFiltered, function(x) log(1 + x) )
+out.pcoa.logt <- phyloseq::ordinate(logt, method = "PCoA", distance = "bray")
+evals         <- out.pcoa.logt$values$Eigenvalues
+phyloseq::plot_ordination(logt, out.pcoa.logt, type = "Sample", 
+                          color = "ExtractionKit") + ggplot2::labs(col = "ExtractionKit") +
+  coord_fixed(sqrt(evals[2] / evals[1]))
+```
+```{r}
+plot_ordination(logt, out.pcoa.logt, type = "taxa", color = "Genus") 
+```
+
+```{r}
+coord_fixed(sqrt(evals[2] / evals[1]))
+```
+Look for low performing samples
+```{r}
+qplot(rowSums(otu_table(ps3)),bins=30) +
+  xlab("Logged counts-per-sample")
+```
+
+
+Removing bad data?    
+- filter out samples (outliers and low performing samples)     
+    
+    
+Filtering data: Use the prevalence of taxa in a dataset as a filtering criteria.     
+     
+Filtering data by taxonomy: We only want to compare what we can see and diversity across extraction kits and are not trying to find novel taxa from poorly characterizd specimens. Because of this, we will include taxonomic filtering all the way down to the genus level.     
+
