@@ -1,0 +1,257 @@
+---
+title: 'Chapter 5: 16S data analysis using the R package Phyloseq'
+author: "Emily Giroux"
+date: "4/17/2019"
+output: pdf_document
+fontsize: 11pt
+geometry: margin=1in
+urlcolor: blue
+header-includes: \usepackage{xcolor}
+---
+
+```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
+#Set the global options for knitr
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy = TRUE, fig.align='center',
+               cache=FALSE, collapse=TRUE, echo=FALSE, eval=FALSE, include=FALSE,
+               message=FALSE, quietly=TRUE, results='hide', warn.conflicts=FALSE, 
+               warning=FALSE)
+```
+
+**Using package `BiocManager` to install required packages:**
+```{r, biocInstall, eval=TRUE, echo=TRUE, include=TRUE, cache=TRUE, tidy=FALSE, message=FALSE}
+r <- getOption("repos")
+r["CRAN"] <- "http://cran.us.r-project.org"
+options(repos = r)
+
+if (!requireNamespace("BiocManager"))
+    install.packages("BiocManager")
+BiocManager::install()
+
+library("BiocManager")
+.cran_packages <- c("cowplot", "data.table", "ggplot2", "knitr", "rprojroot" , "dplyr" , "gridExtra", "caTools")
+.bioc_packages <- c("BiocStyle", "Biostrings", "dada2", "phyloseq", 
+                    "ShortRead")
+.inst <- .cran_packages %in% installed.packages()
+if(any(!.inst)) {
+   install.packages(.cran_packages[!.inst])
+}
+.inst <- .bioc_packages %in% installed.packages()
+if(any(!.inst)) {
+  BiocManager::install(.bioc_packages[!.inst], ask = FALSE)
+}
+# latticeExtra, shortread, dada2 need to be installed
+```
+
+**Load packages into session, and print package versions:**
+```{r, showBiocPackages, echo=TRUE, eval=TRUE, include=TRUE, results='hold', cache=TRUE}
+sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
+```
+
+```{r sourcing_my_functions, echo=FALSE, eval=TRUE, include=FALSE, cache=TRUE}
+#Source our custom R scripts:    
+#For this we will use the rprojroot package to set the directory structures. This will help us when finding our files to source functions. We specify ours is an RStudio project. The root object contains a function that will help us locate our package R files regarless of our current working directory.
+library("rprojroot")
+root <- rprojroot::is_rstudio_project
+scriptsPath <- root$make_fix_file(".")("R")
+scripts  <- dir(root$find_file("R", path = root$find_file()))
+scriptsl <- paste(scriptsPath, scripts, sep = "//")
+lapply(scriptsl, source)
+# Record the path to the environment images directory:
+sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
+analysis <- "ecobiomics/"
+sharedPathAn <- paste(sharedPath, analysis, sep = "")
+# imageDirPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
+imageDirPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/hewapathiranaM/GitHub_Repos/r_environments/ecobiomics/"
+
+# Recall from Chapter 4b 16S DADA2-specific processing step: The only variables we need from the previous environment for this analysis chapter are the "ps" variable from the fitGTR image, which we re-saved in the chptImageB variable:
+# chptImageB <- "ecobiomics_16S_2b.RData" # Load from Emily's environment that ran previous chapter
+# load(paste(imageDirPath, chptImageB, sep = ""))
+
+# Fresh image for this new chapter, and image to continue saving going forward:
+chptImage    <- "ecobiomics_16S_analysis.RData"
+save.image(paste(imageDirPath, chptImage, sep = ""))
+
+# For Minuka when reloading the r_environment for this chapter:
+load("/isilon/cfia-ottawa-fallowfield/users/girouxeml/hewapathiranaM/GitHub_Repos/r_environments/ecobiomics/ecobiomics_16S_analysis.RData")
+```
+\pagebreak    
+
+When re-loading this chapter to continue an already started analysis:
+```{r}
+sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
+analysis <- "ecobiomics/"
+sharedPathAn <- paste(sharedPath, analysis, sep = "")
+imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
+chptImage    <- "ecobiomics_16S_analysis.RData"
+load(paste(imageDirPath, chptImage, sep = ""))
+```
+
+Read in both sample metadata tables generated at the end of read processing:
+```{r, echo=TRUE, eval=FALSE, message=FALSE, warning=FALSE, tidy=FALSE}
+library(data.table)
+sampleTblName <- "final_processed_metadata"
+metadata      <- fread(paste(sharedPathReg, sampleTblName, ".csv", sep = ""), 
+                       sep = "auto", header = TRUE)
+sampleData <- read.table(paste(sharedPathReg, sampleTblName, "_forPhyloseq.txt", sep = ""))
+```
+
+Let's get familiar with our phyloseq object created at the end of our sequencing sample processing chapter:     
+Below I am using the ps, rather than phySeq objects. Recall from the last chunks of Chapter 2, the phySeq object is a phyloseq object without the fitGTR$tree info, while the ps object was created leveraging the fitGTR$tree information. The phySeq object can be used instead of the ps object if the optim.pml command wasn't run.
+```{r, testCmds, eval=FALSE, include=FALSE, echo=FALSE, message=FALSE}
+library(phyloseq)
+rank_names(ps) # Note that for 16S data there are no determinations in the ps variable that extend to the species level
+table(tax_table(ps)[, "Genus"], exclude = NULL)
+```
+Here is if we filter based on having to know the genus:
+```{r, testCmds2, eval=FALSE, include=FALSE, echo=-5, message=FALSE, comment=NA}
+ps2Genus <- subset_taxa(ps, !is.na(Genus) & !Genus %in% c("", "uncharacterized"))
+rank_names(ps2Genus)
+table(tax_table(ps2Genus)[, "Genus"], exclude = NULL)
+```
+
+Visualize alpha-diversity, genus:
+```{r, aDiv1, eval=TRUE, include=TRUE, echo=TRUE, cache=TRUE, message=FALSE}
+library(phyloseq)
+library(ggplot2)
+library(cowplot)
+plot_richness(ps2Genus,
+              x = "ExtractionKit",
+              measures = c("Shannon", "Simpson"),
+              color = "Sample") +
+                theme(axis.text.x = element_text(angle = 90)) +
+  scale_x_discrete(name = "Extraction Kit")
+```
+
+
+Prevalence evaluation for genera:
+```{r, prevTblGenera, echo=TRUE, eval=TRUE, cache=TRUE, results='hold', include=TRUE, tidy=FALSE, message=FALSE, comment=NA}
+library(phyloseq)
+prevDf <- apply(X = otu_table(ps2Genus),
+                MARGIN = ifelse(taxa_are_rows(ps2Genus),
+                                yes = 1, no = 2),
+                FUN = function(x){sum(x>0)})
+
+prevDf <- data.frame(Prevalence = prevDf,
+                     TotalAbundance = taxa_sums(ps2Genus),
+                     tax_table(ps2Genus))
+
+prevalenceTblGenera <- plyr::ddply(prevDf, "Genus",
+                                   function(df1){
+                                     cbind(mean(df1$Prevalence),
+                                           sum(df1$Prevalence))})
+colnames(prevalenceTblGenera) <- c("Genus", "Mean", "Sum")
+prevalenceTblGenera
+```
+### Analysing the 16S data for benthic samples only:    
+```{r}
+psBenthic <- subset_samples(ps, Sample=="benthic")
+```
+
+
+It is more convenient to use short names for our ASVs (e.g. ASV21) rather than the full DNA sequence when working with some of the tables and visualizations from phyloseq, but we want to keep the full DNA sequences for other purposes like merging with other datasets or indexing into reference databases like the Earth Microbiome Project. For that reason we’ll store the DNA sequences of our ASVs in the refseq slot of the phyloseq object, and then rename our taxa to a short string. That way, the short new taxa names will appear in tables and plots, and we can still recover the DNA sequences corresponding to each ASV as needed with refseq(ps).
+```{r assignASVshortNames}
+dna <- Biostrings::DNAStringSet(taxa_names(psBenthic))
+names(dna) <- taxa_names(psBenthic)
+psBenthic <- merge_phyloseq(psBenthic, dna)
+taxa_names(psBenthic) <- paste0("ASV", seq(ntaxa(psBenthic)))
+psBenthic
+```
+
+Here is if we filter based on having to know the genus:
+```{r, testCmds2, eval=FALSE, include=FALSE, echo=-5, message=FALSE, comment=NA}
+ps2Genus <- subset_taxa(psBenthic, !is.na(Genus) & !Genus %in% c("", "uncharacterized"))
+rank_names(ps2Genus)
+table(tax_table(ps2Genus)[, "Genus"], exclude = NULL)
+```
+
+Generate a table that shows the prevalence of genera present across benthic samples:    
+Prevalence in the dataset is defined here as the number of samples in which a taxa appears at least once.
+```{r}
+prevDfBenthic <- apply(X = otu_table(ps2Genus),
+                     MARGIN = ifelse(taxa_are_rows(ps2Genus), yes = 1, no = 2),
+                     FUN = function(x){sum(x>0)})
+prevDfBenthic <- data.frame(Prevalence = prevDfBenthic,
+                          TotalAbundance = taxa_sums(ps2Genus),
+                          tax_table(ps2Genus))
+# Are there genera that are comprised of mostly low-prevalence features? Compute the total and average prevalences of the features in each genus.
+prevTblGenBenthic <- plyr::ddply(prevDfBenthic, "Genus", function(df1){cbind(mean(df1$Prevalence), sum(df1$Prevalence), mean(df1$Prevalence)/nsamples(ps2Genus)*100)})
+colnames(prevTblGenBenthic) <- c("Genus", "Mean", "TotalASVprevalence", "PercentOfSamples")
+prevTblGenBenthic
+prevTblGenBenthic <- plyr::ddply(prevDfBenthic, "Genus", function(df1){cbind(mean(df1$Prevalence), 
+                                                                         sum(df1$Prevalence), 
+                                                                         sum(df1$Prevalence)/mean(df1$Prevalence), 
+                                                                         mean(df1$Prevalence)/sum(df1$Prevalence)*nsamples(ps2Genus))})
+colnames(prevTblGenBenthic) <- c("Genus", "MeanASVAcrossSamples", "TotalPrevalence", "TotalASVInData", "NumberSamplesWithASV")
+head(prevTblGenBenthic)
+prevTblGenBenthic[order(-prevTblGenBenthic$NumberSamplesWithASV),]
+```
+
+
+Remove low-abundance genera that appear in less than 10% of the mean number of samples by sample type: 
+```{r}
+library("dplyr")
+# How many samples represent 10% of total number of samples?
+nsamples(ps2Genus) # 39
+unique(sample_data(ps2Genus)$ExtractionKit)
+x <- aggregate(data.frame(SampleSize = sample_data(ps2Genus)$ExtractionKit), list(ExtractionKit = sample_data(ps2Genus)$ExtractionKit), length)
+prevFilter <- mean(x$SampleSize)*0.1
+# When getting prevalence filter, set it to be the number that is 10% of the mean number of samples by sample type
+arrange(filter(prevTblGenBenthic, TotalPrevalence > prevFilter))
+# Filter-out low-abundance genera that appear in less than the value of the prevalence fitler "prevFilter" calculated above:
+genera <- subset(prevTblGenBenthic, prevTblGenBenthic$TotalPrevalence > prevFilter)
+ps2GenusFiltered    <- subset_taxa(ps2Genus, Genus %in% genera$Genus)
+rank_names(ps2GenusFiltered)
+table(tax_table(ps2GenusFiltered)[, "Genus"])
+tax_table(ps2GenusFiltered)
+```
+
+Taxa prevalence versus total counts after filtering. Each point is a different taxa. Exploration of the data in this way is often useful for selecting filtering parameters, like the minimum prevalence criteria we will used to filter the data above.
+```{r}
+prevdf1 = subset(prevDfBenthic, Genus %in% get_taxa_unique(ps2GenusFiltered, "Genus"))
+ggplot(prevdf1, aes(TotalAbundance, Prevalence / nsamples(psBenthic),color=Genus)) +
+ # Include a guess for parameter
+ geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) + geom_point(size = 2, alpha = 0.7) +
+ scale_x_log10() + xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
+ facet_wrap(~Genus) + theme(legend.position="none")
+```
+
+```{r}
+head(taxa_names(ps2GenusFiltered))
+head(tax_table(ps2GenusFiltered)[,6])
+table(tax_table(ps2GenusFiltered)[,6])
+```
+
+How many genera would be present after filtering?
+```{r}
+length(get_taxa_unique(ps2GenusFiltered, taxonomic.rank = "Genus"))
+```
+
+
+*** Over here!!!! 18Oct2021     
+      
+Now lets filter out samples (outliers and low performing samples)
+Do some simple ordination looking for outlier samples, first we variance stabilize the data with a log transform, then perform PCoA using bray’s distances
+```{r}
+logt          <- phyloseq::transform_sample_counts(ps2GenusFiltered, function(x) log(1 + x) )
+out.pcoa.logt <- phyloseq::ordinate(logt, method = "PCoA", distance = "bray")
+evals         <- out.pcoa.logt$values$Eigenvalues
+phyloseq::plot_ordination(logt, out.pcoa.logt, type = "Sample", 
+                          color = "ExtractionKit") + ggplot2::labs(col = "ExtractionKit") +
+  coord_fixed(sqrt(evals[2] / evals[1]))
+```
+```{r}
+plot_ordination(logt, out.pcoa.logt, type = "taxa", color = "Genus") 
+```
+
+```{r}
+coord_fixed(sqrt(evals[2] / evals[1]))
+```
+Look for low performing samples
+```{r}
+qplot(rowSums(otu_table(ps3)),bins=30) +
+  xlab("Logged counts-per-sample")
+```
+
+
+
