@@ -408,7 +408,7 @@ p1 <- ggplot(df4, aes(x=ExtractionKit, fill = Family)) +
   scale_y_continuous(labels = scales::percent_format()) +
   labs(y="Relative abundance")
 p1+p2 + plot_layout(ncol=2, heights = c(100,1), widths = c(1,2))
-png(file = paste(ggplotsPath, "/AbundanceMainPhylumsFamilies_ITS_Benthic", ".png", sep = ""))
+png(file = paste(ggplotsPath, "/AbundanceMainPhylumsFamilies_16S_Benthic", ".png", sep = ""))
 print(p1+p2 + plot_layout(ncol=2, heights = c(100,1), widths = c(1,2)))
 dev.off()
 ```
