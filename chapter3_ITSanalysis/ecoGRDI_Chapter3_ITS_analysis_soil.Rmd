@@ -269,14 +269,14 @@ df$Family <- sub("f__", "", df$Family)
 df$Genus <- sub("g__", "", df$Genus)
 df$Species <- sub("s__", "", df$Species)
 
-df %>% count(Phylum) %>% arrange(desc(n))
+df %>% dplyr::count(Phylum) %>% arrange(desc(n))
 # Therefore, in the final phyloseq, the most abundant phyla fall under Ascomycota, Basidiomycota, and Mortierellomycota, and Chytridiomycota, others are Mucoromycota, Glomeromycota, Kickxellomycota, Blastocladiomycota, Basidiobolomycota, Monoblepharomycota.
 ```
 
 
 ```{r}
 df2 <- psmelt(ps.top20)
-df2 %>% count(Phylum) %>% arrange(desc(n))
+df2 %>% dplyr::count(Phylum) %>% arrange(desc(n))
 # Therefore, in the top 20 species, the phyla fall under Ascomycota, Basidiomycota, and Mortierellomycota.
 
 df2$group <- paste0(df2$Phylum, "-", df2$Family, sep = "")
