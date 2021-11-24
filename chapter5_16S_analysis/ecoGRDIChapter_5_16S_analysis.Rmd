@@ -193,8 +193,6 @@ head(taxa_names(ps2GenusFiltered))
 head(tax_table(ps2GenusFiltered)[,6]) # The number in brackets is the column number for the taxanomic rank. If we put 7, that reaches to species. For 16S, we only get to the genus rank, and that is column 6.
 table(tax_table(ps2GenusFiltered)[,6])
 ```
-**** Over here!!!! 19Nov2021
-
 How many genera would be present after filtering?
 ```{r}
 length(get_taxa_unique(ps2GenusFiltered, taxonomic.rank = "Genus"))
@@ -212,15 +210,16 @@ minReads <- 1
 logt <- prune_samples(sample_sums(logt) >= minReads, logt)
 sample_sums(logt)
 ```
+
 ```{r}
 out.pcoa.logt <- phyloseq::ordinate(logt, method = "PCoA", distance = "bray")
 evals         <- out.pcoa.logt$values$Eigenvalues
-png(file = paste(ggplotsPath, "/PCoA_distanceBray_16S_water", ".png", sep = ""))
+png(file = paste(ggplotsPath, "/PCoA_distanceBray_16S_all", ".png", sep = ""))
 pcoa <- phyloseq::plot_ordination(logt, out.pcoa.logt, type = "Sample", 
                                   color = "ExtractionKit") + 
   ggplot2::labs(col = "ExtractionKit") +
   coord_fixed(sqrt(evals[2] / evals[1])) +
-  ggtitle("PCoA distance Bray ordinate plot for genera -vs- extraction kit") +
+  ggtitle("PCoA distance Bray ordinate plot for genera -vs- extraction kit for all of 16S") +
   theme(plot.title = element_text(hjust = 0.5))
 print(pcoa)
 dev.off()
@@ -230,9 +229,9 @@ pcoa
 ```{r}
 # Visualize alpha-diversity:
 library("ggplot2")
-png(file = paste(ggplotsPath, "/alphaDiversity_corrected_16S_water", ".png", sep = ""))
+png(file = paste(ggplotsPath, "/alphaDiversity_corrected_16S_all", ".png", sep = ""))
 alphaDiversityCorrected <- plot_richness(logt, x="ExtractionKit", measures=c("Shannon", "Simpson"), color="Sample",
-                                         title = "Alpha diversity of 16S water samples by extraction kit")+ 
+                                         title = "Alpha diversity of all 16S samples by extraction kit")+ 
   theme(plot.title = element_text(hjust = 0.5))
 print(alphaDiversityCorrected)
 dev.off()
@@ -255,10 +254,10 @@ ord.nmds.bray <- ordinate(ps.prop, method="NMDS", distance="bray")
 
 
 ```{r}
-png(file = paste(ggplotsPath, "/brayNMDS_ordinationPlot_16S_water", ".png", sep = ""))
+png(file = paste(ggplotsPath, "/brayNMDS_ordinationPlot_16S_all", ".png", sep = ""))
 
 brayNMDS <- plot_ordination(ps.prop, ord.nmds.bray, color="ExtractionKit", title="Bray NMDS") +
-  ggtitle("Bray NMDS of 16S water samples by extraction kit") +
+  ggtitle("Bray NMDS of all 16S samples by extraction kit") +
   theme(plot.title = element_text(hjust = 0.5))
 
 print(brayNMDS)
@@ -291,7 +290,7 @@ df$Family <- sub("f__", "", df$Family)
 df$Genus <- sub("g__", "", df$Genus)
 
 df %>% dplyr::count(Phylum) %>% arrange(desc(n))
-# Therefore, in the final phyloseq, the most abundant phyla fall under Proteobacteria, Bacteroidetes, Acidobacteria, Verrucomicrobia, Actinobacteria, Planctomycetes, Cyanobacteria, Firmicutes.
+# Therefore, in the final phyloseq, the most abundant phyla fall under Proteobacteria, Bacteroidetes, Firmicutes, Actinobacteria, Verrucomicrobia, and Acidobacteria.
 ```
 
 ```{r}
@@ -307,12 +306,12 @@ df2$Genera <- paste0(df2$ScientificName)
 
 Abundance of top 20 genera plot, using df2, with genus names:
 ```{r}
-png(file = paste(ggplotsPath, "/top20GeneraAbundanceSciNames_16S_water", ".png", sep = ""))
+png(file = paste(ggplotsPath, "/top20GeneraAbundanceSciNames_16S_all", ".png", sep = ""))
 genAbundanceTop20_SciNames <- ggplot(df2, aes_string(x = "ExtractionKit", y = "Abundance", fill = "Genera"),
-                                     title = "Abundance of top 20 genera for 16S water samples by extraction kit",
+                                     title = "Abundance of top 20 genera for all 16S samples by extraction kit",
                                      facet_grid = ~sample_Sample) +
   geom_bar(aes(color = Genera, fill = Genera), stat = "identity", position = "stack") +
-  ggtitle("Abundance of top 20 genera for 16S water samples by extraction kit") + 
+  ggtitle("Abundance of top 20 genera for all 16S samples by extraction kit") + 
   guides(col=guide_legend(ncol=2)) # This splits the legend into 2 columns for readability.
 
 print(genAbundanceTop20_SciNames)
@@ -322,30 +321,25 @@ genAbundanceTop20_SciNames
 
 Using df with edited Kingdom, Phylum, Class, etc edited:
 ```{r}
-phylums <- c("Proteobacteria", "Bacteroidetes", "Acidobacteria", "Verrucomicrobia", 
-             "Actinobacteria", "Planctomycetes", "Cyanobacteria")
+phylums <- c("Proteobacteria", "Bacteroidetes", "Firmicutes", "Actinobacteria", "Verrucomicrobia", "Acidobacteria")
+
 df3 <- df
 df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n))
 df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Proteobacteria")
 df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Bacteroidetes")
-df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Acidobacteria")
-df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Verrucomicrobia")
+df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Firmicutes")
 df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Actinobacteria")
-df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Planctomycetes")
-df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Cyanobacteria")
+df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Verrucomicrobia")
+df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Acidobacteria")
 ```
+
 ```{r}
-# proteobacteria <- c("Burkholderiaceae", "Sphingomonadaceae", "Nitrosomonadaceae", "Xanthobacteraceae", 
-#                     "Xanthomonadaceae", "Caulobacteraceae", "Bdellovibrionaceae", "Legionellaceae",
-#                     "Methylophilaceae", "Polyangiaceae")
-proteobacteria <- c("Burkholderiaceae", "Sphingomonadaceae", "Nitrosomonadaceae")
-# bacteroidetes <- c("Flavobacteriaceae", "Chitinophagaceae", "Spirosomaceae", "Sphingobacteriaceae")
-bacteroidetes <- c("Flavobacteriaceae", "Chitinophagaceae", "Spirosomaceae")
-acidobacteria <- c("Solibacteraceae_(Subgroup_3)")
+proteobacteria <- c("Burkholderiaceae", "Sphingomonadaceae", "Xanthomonadaceae")
+bacteroidetes <- c("Chitinophagaceae", "Flavobacteriaceae", "Spirosomaceae")
+firmicutes <- c("Family_XI", "Ruminococcaceae", "Streptococcaceae")
+actinobacteria <- c("Propionibacteriaceae", "Acidothermaceae", "Sporichthyaceae")
 verrucomicrobia <- c("Opitutaceae", "Chthoniobacteraceae", "Pedosphaeraceae")
-actinobacteria <- c("Propionibacteriaceae", "Sporichthyaceae")
-planctomycetes <- c("Pirellulaceae", "Phycisphaeraceae")
-cyanobacteria <- c("Microcystaceae")
+acidobacteria <- c("Solibacteraceae_(Subgroup_3)", "Acidobacteriaceae_(Subgroup_1)", "Koribacteraceae")
 ```
 
 ```{r}
@@ -359,24 +353,19 @@ df3$Family[df3$Phylum=="Proteobacteria" &
 df3$Family[df3$Phylum=="Bacteroidetes" &
  !df3$Family %in% bacteroidetes] <- "Other Bacteroidetes"
 
-df3$Family[df3$Phylum=="Acidobacteria" &
- !df3$Family %in% acidobacteria] <- "Other Acidobacteria"
-
-df3$Family[df3$Phylum=="Verrucomicrobia" &
- !df3$Family %in% verrucomicrobia] <- "Other Verrucomicrobia"
+df3$Family[df3$Phylum=="Firmicutes" &
+ !df3$Family %in% firmicutes] <- "Other Firmicutes"
 
 df3$Family[df3$Phylum=="Actinobacteria" &
  !df3$Family %in% actinobacteria] <- "Other Actinobacteria"
 
-df3$Family[df3$Phylum=="Planctomycetes" &
- !df3$Family %in% planctomycetes] <- "Other Planctomycetes"
+df3$Family[df3$Phylum=="Verrucomicrobia" &
+ !df3$Family %in% verrucomicrobia] <- "Other Verrucomicrobia"
 
-df3$Family[df3$Phylum=="Cyanobacteria" &
- !df3$Family %in% cyanobacteria] <- "Other Cyanobacteria"
+df3$Family[df3$Phylum=="Acidobacteria" &
+ !df3$Family %in% acidobacteria] <- "Other Acidobacteria"
 
-
-
-#library("forcats")
+library("forcats")
 library("dplyr")
 df4 <- select(df3, ExtractionKit, Phylum, Family) %>%
   mutate(Phylum=factor(Phylum, levels=c(phylums, "Others")),
@@ -389,9 +378,10 @@ Uses the custom colour pallet multi function
 ```{r}
 colours <- ColourPalleteMulti(df4, "Phylum", "Family")
 ```
+
 ```{r}
 library(ggplot2)
-png(file = paste(ggplotsPath, "/relativeAbundance_16S_water", ".png", sep = ""))
+png(file = paste(ggplotsPath, "/relativeAbundance_all_16S", ".png", sep = ""))
 relativeAbundance <- ggplot(df4, aes(x=ExtractionKit, fill = Family)) + 
   geom_bar(position="fill", colour = "grey") +  # Stacked 100% barplot
   scale_fill_manual("", values=colours) +
@@ -403,6 +393,7 @@ print(relativeAbundance)
 dev.off()
 relativeAbundance
 ```
+
 ```{r}
 coord_fam = df4 %>% select(Phylum, Family) %>% unique()  %>% ungroup()%>%mutate(x= c(rep(1,nrow(.))), y=1:nrow(.))
 coord_phylum = coord_fam %>% group_by(Phylum) %>% summarise(x=mean(x),ymid= mean(y),
@@ -437,368 +428,7 @@ p1 <- ggplot(df4, aes(x=ExtractionKit, fill = Family)) +
   scale_y_continuous(labels = scales::percent_format()) +
   labs(y="Relative abundance")
 p1+p2 + plot_layout(ncol=2, heights = c(100,1), widths = c(1,2))
-png(file = paste(ggplotsPath, "/AbundanceMainPhylumsFamilies_ITS_Benthic", ".png", sep = ""))
+png(file = paste(ggplotsPath, "/AbundanceMainPhylumsFamilies_all_16S", ".png", sep = ""))
 print(p1+p2 + plot_layout(ncol=2, heights = c(100,1), widths = c(1,2)))
 dev.off()
 ```
-
-
-
-
-
-
-
-
-
-#############################################################################################################################
-### Analysing the 16S data for soil samples only:    
-```{r}
-psSoil <- subset_samples(ps, Sample=="soil")
-```
-
-Generate a table that shows the prevalence of genera present across soil samples:
-```{r}
-prevDfSoil <- apply(X = otu_table(psSoil),
-                    MARGIN = ifelse(taxa_are_rows(psSoil),
-                                    yes = 1, no = 2),
-                    FUN = function(x){sum(x>0)})
-
-prevDfSoil <- data.frame(Prevalence = prevDfSoil,
-                         TotalAbundance = taxa_sums(psSoil),
-                         tax_table(psSoil))
-
-prevTblGenSoil <- plyr::ddply(prevDfSoil, "Genus",
-                              function(df1){
-                                cbind(mean(df1$Prevalence),
-                                      sum(df1$Prevalence))})
-colnames(prevTblGenSoil) <- c("Genus", "Mean", "Sum")
-prevTblGenSoil
-```
-
-Filter entries with unidentified Phylum (if you want to analyse only taxa that are resolved down to the genus level, can set that here in place of phylum):
-```{r, filterLowPhyla, echo=TRUE, include=TRUE, eval=TRUE, tidy=FALSE, cache=TRUE, results='hold', message=FALSE, comment=NA}
-library(phyloseq)
-prevTblPhySoil <- plyr::ddply(prevDfSoil, "Phylum",
-                              function(df1){
-                                cbind(mean(df1$Prevalence),
-                                      sum(df1$Prevalence))})
-colnames(prevTblPhySoil) <- c("Phylum", "Mean", "Sum")
-
-# See the prevalence of phylum across soil samples:
-arrange(prevTblPhySoil, desc(Sum)) 
-```
-
-```{r}
-# See those phyla that are of low-abundance and appear in less than 10 samples: 
-arrange(filter(prevTblPhySoil, Sum < 10))
-```
-Filter entries with unidentified Phylum, or those phyla that appear in less than 10 samples:
-```{r}
-library(phyloseq)
-phylas <- subset(prevTblPhySoil, prevTblPhySoil$Sum < 10)
-psSoilPhy1    <- subset_taxa(psSoil, !Phylum %in% phylas$Phylum)
-rank_names(psSoilPhy1)
-table(tax_table(psSoilPhy1)[, "Phylum"], exclude = c(NA, NULL))
-```
-Plot Phylum:
-```{r, plotPhylum, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, results='hold', include=TRUE, message=FALSE}
-library(phyloseq)
-library(ggplot2)
-prevTblPhySoil1 <- subset(prevDfSoil, Phylum %in% get_taxa_unique(psSoilPhy1, "Phylum"))
-prevTblPhySoil2 <- subset(prevTblPhySoil1, !is.na(Phylum)) # filtering out taxa where Phylum is NA
-
-ggplot(prevTblPhySoil2, aes(TotalAbundance, Prevalence / nsamples(psSoilPhy1),
-                            color = Phylum)) +
-  geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) +
-  geom_point(size = 0.5, alpha = 0.6) +
-  scale_x_log10() + xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
-  facet_wrap(~Phylum) + theme(legend.position = "none")
-```
-Each point in the above plots is a different taxa, Phylum.
-```{r, prevTreshSet, eval=TRUE, echo=TRUE, cache=TRUE, comment=NA}
-prevalenceThreshold = 0.05*nsamples(psSoilPhy1)
-prevalenceThreshold
-```
-The taxa with a prevalence threshold less than the one set in the above chunk are removed using prune_taxa and put into a new phyloseq object, `ps2`, and we look at the resulting richness plot:    
-Note, NucleoSpin was not used for DNA extraction in soil samples.
-```{r, taxPrevTresh, echo=TRUE, eval=TRUE, results='hold', cache=TRUE, tidy=FALSE, message=FALSE, comment=NA}
-library(phyloseq)
-keepTaxa <- rownames(prevTblPhySoil2)[(prevTblPhySoil2$Prevalence >= prevalenceThreshold)]
-ps2 <- prune_taxa(keepTaxa, psSoilPhy1)
-rank_names(ps2)
-table(tax_table(ps2)[, "Phylum"])
-plot_richness(ps2, 
-              x = "ExtractionKit", 
-              measures = c("Shannon", "Simpson"), 
-              color = "Sample") +
-                theme(axis.text.x = element_text(angle = 90)) +
-  scale_x_discrete(name = "Extraction Kit")
-```
-
-Phylum - curiosity:     
-Curious about the mean and sum prevalence after keeping only taxa passing prevalenceThreshold:
-```{r, prevPhylcheck, eval=TRUE, echo=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, comment=NA}
-library(phyloseq)
-prevDf2 <- apply(X = otu_table(ps2),
-                MARGIN = ifelse(taxa_are_rows(ps2), yes = 1, no = 2),
-                FUN = function(x){sum(x > 0)})
-
-prevDf2 <- data.frame(Prevalence = prevDf2,
-                      TotalAbundance = taxa_sums(ps2),
-                      tax_table(ps2))
-
-prevPhylatblThreshold <- plyr::ddply(prevDf2, "Phylum", 
-                                     function(df1){
-                                       cbind(mean(df1$Prevalence), 
-                                             sum(df1$Prevalence))})
-colnames(prevPhylatblThreshold) <- c("Phylum", "Mean", "Sum")
-prevPhylatblThreshold
-```
-Note: I am assuming that the mean is the mean number of times the phylum was seen in a sample for all samples in which it was seen, while the sum is the total times it was seen across all samples. For example, if Actinobacteria was seen a total of 179 times, with about 11 occurances per sample, while Armatimonadetes was seen 9 times total and the mean is simply 9 because when it was seen, it was all three in one sample.     
-     
-Number of unique phyla, genera and species, across all samples:
-```{r, taxUniqueRanks, echo=TRUE, eval=TRUE, cache=TRUE, comment=NA}
-library(phyloseq)
-uniqueClasses <- c("Phylum", "Genus")
-for(i in unique(uniqueClasses)) 
-  cat(cat(i), length(get_taxa_unique(ps2, taxonomic.rank = i)), "\n")
-```
-
-The tax_glom function of phyloseq merges species that have the same taxonomy at certain taxonomic rank, using categorical data. The tip_glom function agglomerates tree tips into a single taxa if they are separated by less than a height specified by `h`. 
-```{r, taxGlom, echo=TRUE, eval=TRUE, cache=TRUE}
-library(phyloseq)
-ps3 <- tax_glom(ps2, "Genus", NArm = TRUE)
-h1 = 0.01
-ps4 <- tip_glom(ps2, h = h1)
-```
-
-How many taxa are left before/after agglomeration?:
-```{r}
-ntaxa(ps2); ntaxa(ps3); ntaxa(ps4)
-```
-
-Out of curiosity how many "reads" does this leave us at???
-```{r}
-sum(colSums(otu_table(ps2))); sum(colSums(otu_table(ps3))); sum(colSums(otu_table(ps4)))
-```
-
-Below we will look at plots of our trees before agglomeration, with agglomeration using tax_glom, and with agglomeration by tip separation using tip_glom:
-```{r, tipGlom, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, message=FALSE}
-library(phyloseq)
-library(ggplot2)
-library(cowplot)
-multiPlotTitleTextSize = 15
-p2Tree <- plot_tree(ps2, method = "treeonly",
-                    ladderize = "left",
-                    title = "Before Agglomeration") +
-  theme(plot.title = element_text(size = multiPlotTitleTextSize))
-
-p3Tree <- plot_tree(ps3, method = "treeonly",
-                    ladderize = "left", title = "By Genus") +
-  theme(plot.title = element_text(size = multiPlotTitleTextSize))
-
-p4Tree <- plot_tree(ps4, method = "treeonly",
-                    ladderize = "left", title = "By Height") +
-  theme(plot.title = element_text(size = multiPlotTitleTextSize))
-gridExtra::grid.arrange(nrow = 1, p2Tree, p3Tree, p4Tree)
-```
-
-From here on we will continue using the ps3 with the gglomerated taxa at the Genus level (combine all with the same name) and remove all taxa without genus level assignmentand that has had the `NA', low-abundance, and prevalence threshold filters applied.  
-```{r, plotPhylum2, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, comment=NA}
-library(phyloseq)
-library(ggplot2)
-plotPhylum <- plot_bar(ps3, x = "ExtractionKit", fill = "Phylum", 
-                       facet_grid = ~sample_Sample)
-plotPhylum + geom_bar(aes(color = Phylum, fill = Phylum), 
-                      stat = "identity", 
-                      position = "stack")
-```
-
-```{r}
-qplot(rowSums(otu_table(ps3)),bins=30) +
-  xlab("Logged counts-per-sample")
-```
-
-Now lets filter out samples (outliers and low performing samples)
-Do some simple ordination looking for outlier samples, first we variance stabilize the data with a log transform, then perform PCoA using bray’s distances
-
-```{r}
-logt  = transform_sample_counts(ps3, function(x) log(1 + x) )
-out.pcoa.logt <- ordinate(logt, method = "PCoA", distance = "bray")
-evals <- out.pcoa.logt$values$Eigenvalues
-plot_ordination(logt, out.pcoa.logt, type = "Sample", 
-                color = "ExtractionKit") + labs(col = "ExtractionKit") +
-  coord_fixed(sqrt(evals[2] / evals[1]))
-```
-  
-```{r}
-plot_ordination(logt, out.pcoa.logt, type = "taxa", color = "Phylum") 
-```
-```{r}
-coord_fixed(sqrt(evals[2] / evals[1]))
-```
-Look for low performing samples
-```{r}
-qplot(rowSums(otu_table(ps3)),bins=30) +
-  xlab("Logged counts-per-sample")
-```
-Show taxa proportions per sample
-
-```{r}
-grid.arrange(nrow = 2,
-qplot(as(otu_table(logt),"matrix")["16S_NA_GB_K1A_2_FD",], geom = "histogram", bins=30) +
-  xlab("Relative abundance"),
-
-qplot(as(otu_table(logt),"matrix")["16S_NA_GB_K1B_2_FD",], geom = "histogram", bins=30) +
-  xlab("Relative abundance")
-)
-
-```
-##### NOTE   - may see this as the start of a problem when trying to follow the tutorial at "https://ucdavis-bioinformatics-training.github.io/2017-September-Microbial-Community-Analysis-Workshop/friday/MCA_Workshop_R/phyloseq.html"    
-There appears to be a difference where their taxa are as rows and mine are as columns???    
-So in the chunk below, keeping taxa seems to save samples instead of taxa, when the tutorial seems to have meant the reverse... This error propagates more uncertainty and issues running commands as we progress from here on in.
-
-```{r}
-prop  = transform_sample_counts(ps3, function(x) x / sum(x) )
-keepTaxa <- ((apply(otu_table(prop) >= 0.005,1,sum,na.rm=TRUE) > 2) | (apply(otu_table(prop) >= 0.05, 1, sum,na.rm=TRUE) > 0))
-table(keepTaxa)
-```
-
-The following works when viewing by kit, but is too messy when viewing by sample since we have 53 samples, and after pruning out low log counts samples, still have 29 samples remaining, which makes the x-axis useless to try to visualise.
-```{r}
-## for Firmictures
-plot_abundance = function(physeq, meta, title = "",
-                 Facet = "Order", Color = "Order"){
-  # Arbitrary subset, based on Phylum, for plotting
-  p1f = subset_taxa(physeq, Phylum %in% c("Firmicutes")) # I changed "p__Firmicutes" to just "Firmicutes" or else command fails with dimnames as this table is more processee than the example one in the tutorial
-  mphyseq = psmelt(p1f)
-  mphyseq <- subset(mphyseq, Abundance > 0)
-  ggplot(data = mphyseq, mapping = aes_string(x = meta,y = "Abundance",
-                                 color = Color, fill = Color)) +
-    geom_violin(fill = NA) +
-    geom_point(size = 1, alpha = 0.3,
-                position = position_jitter(width = 0.3)) +
-    facet_wrap(facets = Facet) + scale_y_log10()+
-    theme(legend.position="none")
-}
-
-# remove samples with fewer than 10000 logged counts per sample
-ps3.4 <- prune_samples(sample_sums(ps3)>=10000, ps3) 
-ps3.4
-
-# transform counts into "abundances"
-ps3.4ra <- transform_sample_counts(ps3.4, function(x){x / sum(x)})
-ps3.4hell <- ps3.4ra
-otu_table(ps3.4hell) <- otu_table(decostand(otu_table(ps3.4hell), method = "hellinger"), taxa_are_rows=FALSE)
-ps3.4log <- transform_sample_counts(ps3.4, function(x) log(1 + x))
-
-plotOriginal = plot_abundance(ps3.4, "ExtractionKit", title="original") # Viewing per extraction kit easier than per sample, but we know that the FastDNA has the lowest number of samples, and even loses some after pruning.
-plotRelative = plot_abundance(ps3.4ra, "ExtractionKit", title="relative")
-plotHellinger = plot_abundance(ps3.4hell, "ExtractionKit", title="Hellinger")
-plotLog = plot_abundance(ps3.4log, "ExtractionKit", title="Log")
-# Combine each plot into one graphic.
-grid.arrange(nrow = 4, plotOriginal, plotRelative, plotHellinger, plotLog)
-```
-One at a time:
-```{r}
-grid.arrange(nrow = 1, plotOriginal)
-```
-
-```{r}
-grid.arrange(nrow = 1, plotRelative)
-```
-
-```{r}
-grid.arrange(nrow = 1, plotHellinger)
-```
-
-```{r}
-grid.arrange(nrow = 1, plotLog)
-```
-
-
-```{r}
-ps3.4hell_trim <- prune_taxa(keepTaxa, ps3.4hell)
-plot_heatmap(ps3.4hell_trim, "PCoA", distance="bray", sample.label="SampleName", taxa.label="Genus", low="#FFFFCC", high="#000033", na.value="white")
-```
-
-
-
-```{r, topTaxPlotsSpp, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, comment=NA}
-library(phyloseq)
-library(ggplot2)
-
-topSpecies <- names(sort(taxa_sums(ps2), TRUE)[1:27])
-taxTabSpp  <- cbind(tax_table(ps2), Species = NA)
-taxTabSpp[topSpecies, "Species"] <- as(tax_table(ps2)[topSpecies, "Species"],
-                                             "character")
-tax_table(ps2) <- tax_table(taxTabSpp)
-ps2mSpp <- merge_samples(ps2, "ExtractionKit")
-sample_data(ps2mSpp)$ExtractionKit <- levels(sample_data(ps2)$ExtractionKit)
-ps2mSpp <- transform_sample_counts(ps2mSpp, function(x) 100 * x/sum(x))
-
-ps2mSppTop = prune_taxa(topSpecies, ps2mSpp)
-title = "Figure 2 Top 17 Species, attempt 1"
-plotSpecies <- plot_bar(ps2mSppTop, "ExtractionKit", 
-                        fill = "Species", 
-                        title = title) + 
-  coord_flip() + 
-  ylab("Percentage of Sequences") + ylim(0, 70) +
-  geom_bar(aes(color = Species, fill = Species), 
-           stat = "identity", position = "stack")
-plotSpecies
-```
-Below I'm testing what a heatmap would look like for taxa abundance across extraction kits:
-```{r, plotHeatMap, echo=TRUE, eval=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, comment=NA, warning=FALSE}
-library(phyloseq)
-library(ggplot2)
-plot_heatmap(ps2mTop, "PCoA", distance="bray", 
-             sample.label="ExtractionKit", 
-             taxa.label="Species",
-             low="#66CCFF", high="#000033", na.value="white") +
-  scale_x_discrete(expand=c(0,0))
-```
-
-```{r, barPlotTop20Genus, echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, tidy=FALSE, cache=TRUE}
-library(phyloseq)
-library(ggplot2)
-
-top20 <- names(sort(taxa_sums(ps2), decreasing=TRUE))[1:20]
-ps.top20 <- transform_sample_counts(ps2, function(OTU) OTU/sum(OTU))
-ps.top20 <- prune_taxa(top20, ps.top20)
-
-plotGenus <- plot_bar(ps.top20, x = "ExtractionKit", fill = "Genus", 
-                      facet_grid = ~sample_Sample)
-plotGenus + geom_bar(aes(color = Genus, fill = Genus), 
-                     stat = "identity", 
-                     position = "stack")
-```
-
-Not yet working:     
-Transform data to proportions as appropriate for Bray-Curtis distances:
-```{r, trnfrmBrayC, eval=FALSE, echo=TRUE, tidy=FALSE, warning=FALSE, error=FALSE}
-library(phyloseq)
-psProp <- transformSampleCounts(ps2, function(otu) otu/sum(otu))
-
-ordNmdsBray1 <- ordinate(psProp, method="NMDS", distance="bray")
-```
-
-Statistical analysis
-Post hoc comparisons between the four tested methods were made using the Tukey HSD test. OTUs or OTUs pooled at phylum, class, order, family or genera level with different abundances were identified using a generalized linear model where the counts follow an overdispersed Poisson distribution (Kristiansson, Hugenholtz and Dalevi 2009; Jonsson et al.2016). The p-values were corrected for multiple testing using the false discovery rate (FDR) method. The OTU abundance was used for principal component analysis (PCA). Shared OTUs between DNA extraction methods were graphically visualised in Venn diagrams using the corresponding OTU tables exported from QIIME. The hypergeometric distribution was used to test the distribution of gram negatives and gram positives among the taxa identified with the respective four DNA extraction methods. Pearson correlations were used to test for correlations between descriptors of DNA quantity and quality (Table 1), and descriptors of taxonomic diversity (Table 2). The statistical significance for all the analyses was set to P < 0.05 or FDR< 0.05. All statistical analyses were carried out using the R v.3.2.0 software (R Core Team 2013).
-
-Table 2.
-Detected 16S rRNA richness and biodiversity from marine periphyton biofilm DNA extracted with the four studied methods.
-
- 	FastDNA Soil 	PowerPlant 	PowerBiofilm 	PlantDNAzol 	 
-n 	3 	2 	3 	3 	P-values 
-No. of OTUs 	666 ± 42 	704 ± 58 	809 ± 11 	791 ± 7 	P < 0.05 
-No. of phyla 	17 ± 1 	17 ± 1 	17 ± 1 	18 ± 0 	ns 
-No. of classes 	39 ± 1 	40 ± 1 	40 ± 2 	41 ± 1 	ns 
-No. of orders 	68 ± 3 	70 ± 3 	71 ± 2 	72 ± 1 	ns 
-No. of families 	91 ± 2 	95 ± 6 	104 ± 3 	106 ± 2 	P < 0.05 
-No. of genera 	141 ± 4 	145 ± 12 	159 ± 4 	162 ± 3 	P < 0.05 
-
-Each value represents the arithmetic mean ± standard error of the mean. n: number of replicates. Statistical significance between extraction methods is denoted as P < 0.05 (ANOVA).
-
-ns: indicates no statistically significant differences between extraction methods.
-
