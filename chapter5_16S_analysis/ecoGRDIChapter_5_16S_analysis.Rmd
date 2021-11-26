@@ -436,11 +436,13 @@ dev.off()
 save.image(paste(imageDirPath, chptImage, sep = ""))
 ```
 
+
+# Starting to look at rarefaction curves - not yet working.
 ```{r}
 library("vegan")
-counts_tab <- data.frame(taxa_sums(ps2GenusFiltered))
-sample_info_tab <- sample_data(ps2GenusFiltered)
-sample_info_tab$color <- sample_info_tab$ExtractionKit
-sample_info_tab$color <- as.character(sample_info_tab$color)
-rarecurve(t(counts_tab), step=100, col=sample_info_tab$color, lwd=2, ylab="ASVs", label = F)
+# counts_tab <- data.frame(taxa_sums(ps2GenusFiltered))
+# sample_info_tab <- sample_data(ps2GenusFiltered)
+# sample_info_tab$color <- sample_info_tab$ExtractionKit
+# sample_info_tab$color <- as.character(sample_info_tab$color)
+# rarePng <- rarecurve(t(counts_tab), step=100, col=sample_info_tab$color, lwd=2, ylab="ASVs", label = F)
 ```
