@@ -285,9 +285,6 @@ algn <- DECIPHER::AlignSeqs(Biostrings::DNAStringSet(seqs),
                             anchor = NA, verbose = TRUE)
 save.image(paste(imageDirPath, chptImageB, sep = ""))
 ```
-***Over here!!!! 02Feb2021      
-       
-
 The phangorn R package is then used to construct a phylogenetic tree. Here we first construct a neighbor-joining tree, and then fit a GTR+G+I (Generalized time-reversible with Gamma rate variation) maximum likelihood tree using the neighbor-joining tree as a starting point.
 ```{r, phangAlignFitGTR, echo=-17, eval=FALSE, include=TRUE, tidy=FALSE}
 library("phangorn")
@@ -388,14 +385,14 @@ ps <- phyloseq::phyloseq(otu_table(seqTabKept, taxa_are_rows = FALSE),
 The only variable we need to save from the fitGTR image is "ps". Save this individual variable, and then load it with the chptImageB, without all the intermediate varibales.
 ```{r, finalSave, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
 # Save the ps variable:
-save(ps, file = paste(imageDirPath, "ps.Rdata", sep = ""))
+save(ps, file = paste(imageDirPath, "COIps.Rdata", sep = ""))
 
 # Clear the global environment, including hidden variables:
 rm(list = ls(all.names = TRUE))
 
 # Load the chptImageB and the ps variable:
-load("/isilon/cfia-ottawa-fallowfield/users/girouxeml/GitHub_Repos/r_environments/ecobiomics/ecobiomics_ITS_2b.RData")
-load(paste(imageDirPath, "ps.Rdata", sep = ""))
+load("/isilon/cfia-ottawa-fallowfield/users/girouxeml/GitHub_Repos/r_environments/ecobiomics/ecobiomics_COI_2b.RData")
+load(paste(imageDirPath, "COIps.Rdata", sep = ""))
 
 # Save the chptImageB again so it includes the ps variable:
 save.image(paste(imageDirPath, chptImageB, sep = ""))
