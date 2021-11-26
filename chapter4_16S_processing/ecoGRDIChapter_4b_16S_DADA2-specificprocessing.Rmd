@@ -450,12 +450,13 @@ save.image(paste(imageDirPath, "fitGTR_", chptImageB, sep = ""))
 The only variable we need to save from the fitGTR image is "ps". Save this individual variable, and then load it with the chptImageB, without all the intermediate varibales.
 ```{r, finalSave, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
 # Save the ps variable:
-save(ps, file = paste(imageDirPath, "16S_ps.Rdata", sep = ""))
+save(ps, file = paste(imageDirPath, "ps_16S.Rdata", sep = ""))
 # Clear the global environment, including hidden variables:
 rm(list = ls(all.names = TRUE))
 # Load the chptImageB and the ps variable:
 load("/isilon/cfia-ottawa-fallowfield/users/girouxeml/GitHub_Repos/r_environments/ecobiomics/ecobiomics_16S_2b.RData")
-load(paste(imageDirPath, "16S_ps.Rdata", sep = ""))
+load(paste(imageDirPath, "ps_16S.Rdata", sep = ""))
 # Save the chptImageB again so it includes the ps variable:
 save.image(paste(imageDirPath, chptImageB, sep = ""))
 ```
+
