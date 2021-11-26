@@ -72,7 +72,7 @@ load(paste(imageDirPath, chptImageB, sep = ""))
 
 Fresh image for this new chapter, and image to continue saving going forward:
 ```{r}
-chptImage    <- "ecobiomics_ITS_analysis_soil.RData"
+chptImage    <- "ecobiomics_ITS_analysis.RData"
 save.image(paste(imageDirPath, chptImage, sep = ""))
 ```
 
@@ -82,7 +82,7 @@ save.image(paste(imageDirPath, chptImage, sep = ""))
 
 
 Pre-processing data for analysis:    
-1. Extract ITS data specific to Soil samples "subsetSoilPSdata"    
+1. Extract ITS data for all Soil samples    
 2. Assign ASV names to ASV DNA sequences for readability "assignASVshortNames"    
     
     

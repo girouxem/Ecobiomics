@@ -100,7 +100,7 @@ For ITS we can analyse the data at the species level.
 Let's get familiar with our phyloseq object created at the end of our sequencing sample processing chapter:     
 Below I am using the ps, rather than phySeq objects. Recall from the last chunks of Chapter 2, the phySeq object is a phyloseq object without the fitGTR$tree info, while the ps object was created leveraging the fitGTR$tree information. The phySeq object can be used instead of the ps object if the optim.pml command wasn't run.
 ```{r, testCmds, eval=FALSE, include=FALSE, echo=FALSE, message=FALSE}
-library(phyloseq)
+library("phyloseq")
 rank_names(ps)
 table(tax_table(ps)[, "Species"], exclude = NULL)
 ```
@@ -130,9 +130,9 @@ save.image(paste(imageDirPath, chptImage, sep = ""))
 
 Visualize alpha-diversity, species:
 ```{r, aDiv1, eval=TRUE, include=TRUE, echo=TRUE, cache=TRUE, message=FALSE}
-library(phyloseq)
-library(ggplot2)
-library(cowplot)
+library("phyloseq")
+library("ggplot2")
+library("cowplot")
 allITSAlphaDIversity <- plot_richness(ps2Species,
                                       x = "ExtractionKit",
                                       measures = c("Shannon", "Simpson"),
@@ -187,7 +187,7 @@ tax_table(ps2SpeciesFiltered)
 
 Taxa prevalence versus total counts after filtering. Each point is a different taxa. Exploration of the data in this way is often useful for selecting filtering parameters, like the minimum prevalence criteria we will used to filter the data above.
 ```{r}
-library(ggplot2)
+library("ggplot2")
 prevdf1 = subset(prevDf, Species %in% get_taxa_unique(ps2SpeciesFiltered, "Species"))
 ggplot(prevdf1, aes(TotalAbundance, Prevalence / nsamples(ps),color=Species)) +
  # Include a guess for parameter
