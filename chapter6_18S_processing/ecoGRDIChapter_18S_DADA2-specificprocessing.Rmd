@@ -343,8 +343,6 @@ cmd <- paste("load('", paste(imageDirPath, chptImageB, sep = ""), "')\n",
              sep = "")
 MakeRQsubs(cmd, prefix)
 ```
-***Over here!!!! 25Nov2021      
-
 
 If the above chunk was used to align and get the tree, update the environment once it is done so that the final fitGTR can be updated. To do this, simply load the image that was written in the qsub script in the above chunk.
 ```{r, echo=-2, eval=FALSE, include=TRUE, tidy=FALSE}
@@ -388,14 +386,14 @@ ps <- phyloseq::phyloseq(otu_table(seqTabKept, taxa_are_rows = FALSE),
 The only variable we need to save from the fitGTR image is "ps". Save this individual variable, and then load it with the chptImageB, without all the intermediate varibales.
 ```{r, finalSave, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
 # Save the ps variable:
-save(ps, file = paste(imageDirPath, "ps.Rdata", sep = ""))
+save(ps, file = paste(imageDirPath, "ps_18S.Rdata", sep = ""))
 
 # Clear the global environment, including hidden variables:
 rm(list = ls(all.names = TRUE))
 
 # Load the chptImageB and the ps variable:
-load("/isilon/cfia-ottawa-fallowfield/users/girouxeml/GitHub_Repos/r_environments/ecobiomics/ecobiomics_ITS_2b.RData")
-load(paste(imageDirPath, "ps.Rdata", sep = ""))
+load("/isilon/cfia-ottawa-fallowfield/users/girouxeml/GitHub_Repos/r_environments/ecobiomics/ecobiomics_18S_2b.RData")
+load(paste(imageDirPath, "ps_18S.Rdata", sep = ""))
 
 # Save the chptImageB again so it includes the ps variable:
 save.image(paste(imageDirPath, chptImageB, sep = ""))
