@@ -112,7 +112,8 @@ errR <- dada2::learnErrors(filtRs, nbases = 1e8, randomize = TRUE, multithread =
 
 We can visualise the estimated error rates as a sanity check:
 ```{r, plot1Errors, echo=TRUE, eval=TRUE, include=TRUE, cache=TRUE, tidy=FALSE, message=FALSE, warning=FALSE}
-dada2::plotErrors(errF, nominalQ = TRUE)
+dada2::plotErrors(errF) 
+# adding 'nominalQ = TRUE' will add a trendline to the plots (dada2::plotErrors(errF, nominalQ = TRUE))
 ```
 
 - drepDadaMergePool1. Sample inference and merging of paired-end reads:
@@ -191,7 +192,8 @@ errR <- dada2::learnErrors(filtRs, nbases = 1e8, randomize = TRUE,
 save.image(paste(imageDirPath, chptImageB, sep = ""))
 
 # Visualise the estimated error rates as a sanity check:
-dada2::plotErrors(errF, nominalQ = TRUE)
+dada2::plotErrors(errF) 
+# adding 'nominalQ = TRUE' will add a trendline to the plots (dada2::plotErrors(errF, nominalQ = TRUE))
 ```
 
 - drepDadaMergePool2. Sample inference and merging of paired-end reads:
