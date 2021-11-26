@@ -1,0 +1,411 @@
+---
+title: "GRDI Ecobiomics COI Analysis"
+author: "Emily Giroux"
+date: "11/25/2021"
+output: pdf_document
+fontsize: 11pt
+geometry: margin=1in
+urlcolor: blue
+header-includes: \usepackage{xcolor}
+---
+
+
+```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy = TRUE, fig.align='center',
+               cache=FALSE, collapse=TRUE, echo=FALSE, eval=FALSE, include=FALSE,
+               message=FALSE, quietly=TRUE, results='hide', warn.conflicts=FALSE, 
+               warning=FALSE)
+```
+
+```{r, installation1, eval=TRUE, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
+r <- getOption("repos")
+r["CRAN"] <- "http://cran.us.r-project.org"
+options(repos = r)
+
+if (!requireNamespace("BiocManager"))
+    install.packages("BiocManager")
+BiocManager::install()
+
+library("BiocManager")
+.cran_packages <- c("cowplot", "data.table", "ggplot2", "knitr", "rprojroot")
+.bioc_packages <- c("BiocStyle", "Biostrings", "dada2", "phyloseq",
+                    "ShortRead")
+.inst <- .cran_packages %in% installed.packages()
+if(any(!.inst)) {
+   install.packages(.cran_packages[!.inst])
+}
+.inst <- .bioc_packages %in% installed.packages()
+if(any(!.inst)) {
+  BiocManager::install(.bioc_packages[!.inst], ask = FALSE)
+}
+```
+
+**Load packages into session, and print package versions:**
+```{r, showBiocPackages, echo=FALSE, eval=TRUE, include=TRUE, results='hold', cache=TRUE}
+sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
+```
+
+Source our custom R scripts:    
+For this we will use the rprojroot package to set the directory structures. This will help us when finding our files to source functions. We specify ours is an RStudio project. The root object contains a function that will help us locate our package R files regarless of our current working directory.
+```{r sourcing_my_functions, echo=FALSE, eval=TRUE, include=FALSE, cache=TRUE}
+library("rprojroot")
+root <- rprojroot::is_rstudio_project
+scriptsPath <- root$make_fix_file(".")("R")
+scripts  <- dir(root$find_file("R", path = root$find_file()))
+scriptsl <- paste(scriptsPath, scripts, sep = "//")
+lapply(scriptsl, source)
+```
+
+Record the path to the environment images directory:
+```{r importChptImage, echo=TRUE, eval=TRUE, include=FALSE, cache=TRUE}
+sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
+analysis <- "ecobiomics/"
+sharedPathAn <- paste(sharedPath, analysis, sep = "")
+imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
+```
+
+Recall from Chapter 8 COI DADA2-specific processing step: The only variables we need from the previous environment for this analysis chapter are the "ps" variable from the fitGTR image, which we re-saved in the chptImageB variable:
+```{r}
+chptImageB <- "ecobiomics_COI_2b.RData"
+load(paste(imageDirPath, chptImageB, sep = ""))
+```
+
+Fresh image for this new chapter, and image to continue saving going forward:
+```{r}
+chptImage    <- "ecobiomics_COI_analysis.RData"
+save.image(paste(imageDirPath, chptImage, sep = ""))
+load(paste(imageDirPath, chptImage, sep = ""))
+```
+
+For COI we can analyse the data at the species level.      
+Let's get familiar with our phyloseq object created at the end of our sequencing sample processing chapter:     
+Below I am using the ps, rather than phySeq objects. Recall from the last chunks of Chapter 2, the phySeq object is a phyloseq object without the fitGTR$tree info, while the ps object was created leveraging the fitGTR$tree information. The phySeq object can be used instead of the ps object if the optim.pml command wasn't run.
+```{r, testCmds, eval=FALSE, include=FALSE, echo=FALSE, message=FALSE}
+library(phyloseq)
+rank_names(ps)
+table(tax_table(ps)[, "Species"], exclude = NULL)
+```
+
+It is more convenient to use short names for our ASVs (e.g. ASV21) rather than the full DNA sequence when working with some of the tables and visualizations from phyloseq, but we want to keep the full DNA sequences for other purposes like merging with other datasets or indexing into reference databases like the Earth Microbiome Project. For that reason we’ll store the DNA sequences of our ASVs in the refseq slot of the phyloseq object, and then rename our taxa to a short string. That way, the short new taxa names will appear in tables and plots, and we can still recover the DNA sequences corresponding to each ASV as needed with refseq(ps).
+```{r assignASVshortNames}
+dna <- Biostrings::DNAStringSet(taxa_names(ps))
+names(dna) <- taxa_names(ps)
+psAll <- merge_phyloseq(ps, dna)
+taxa_names(psAll) <- paste0("ASV", seq(ntaxa(psAll)))
+psAll
+```
+
+Here is if we filter based on having to know the species:
+```{r, testCmds2, eval=FALSE, include=FALSE, echo=-5, message=FALSE, comment=NA}
+ps2Species <- subset_taxa(psAll, !is.na(Species) & !Species %in% c("", "uncharacterized"))
+rank_names(ps2Species)
+table(tax_table(ps2Species)[, "Species"], exclude = NULL)
+```
+
+Create a directory for the png plots, images, etc, generated by ggplot:
+```{r}
+dir.create(paste(sharedPathReg, "ggplots", sep = ""), showWarnings = TRUE, recursive = FALSE)
+ggplotsPath <- paste(sharedPathReg, "ggplots", sep = "")
+save.image(paste(imageDirPath, chptImage, sep = ""))
+```
+
+Visualize alpha-diversity, species:
+```{r, aDiv1, eval=TRUE, include=TRUE, echo=TRUE, cache=TRUE, message=FALSE}
+library(phyloseq)
+library(ggplot2)
+library(cowplot)
+allCOIAlphaDIversity <- plot_richness(ps2Species,
+                                      x = "ExtractionKit",
+                                      measures = c("Shannon", "Simpson"),
+                                      color = "Sample",
+                                      title = "Alpha diversity of all COI samples by extraction kit") +
+  theme(axis.text.x = element_text(angle = 90)) +
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  scale_x_discrete(name = "Extraction Kit")
+png(file = paste(ggplotsPath, "/All_COI_AlphaDiversityShannonSimpson", ".png", sep = ""))
+print(allCOIAlphaDIversity)
+dev.off()
+allCOIAlphaDIversity
+```
+Prevalence evaluation for species:    
+Generate a table that shows the prevalence of species present across samples:         
+Prevalence in the dataset is defined here as the number of samples in which a taxa appears at least once.
+```{r, prevTblSpecies, echo=TRUE, eval=TRUE, cache=TRUE, results='hold', include=TRUE, tidy=FALSE, message=FALSE, comment=NA}
+library("phyloseq")
+prevDf <- apply(X = otu_table(ps2Species),
+                MARGIN = ifelse(taxa_are_rows(ps2Species), yes = 1, no = 2),
+                FUN = function(x){sum(x>0)})
+prevDf <- data.frame(Prevalence = prevDf,
+                     TotalAbundance = taxa_sums(ps2Species),
+                     tax_table(ps2Species))
+# Are there species that are comprised of mostly low-prevalence features? Compute the total and average prevalences of the features in each species.
+prevalenceTblSpecies <- plyr::ddply(prevDf, "Species", function(df1){cbind(mean(df1$Prevalence), sum(df1$Prevalence), sum(df1$Prevalence)/mean(df1$Prevalence),
+                                                                           mean(df1$Prevalence)/sum(df1$Prevalence)*nsamples(ps2Species))})
+colnames(prevalenceTblSpecies) <- c("Species", "MeanASVAcrossSamples", "TotalPrevalence", "TotalASVInData", "NumberSamplesWithASV")
+prevalenceTblSpecies
+head(prevalenceTblSpecies)
+prevalenceTblSpecies[order(-prevalenceTblSpecies$NumberSamplesWithASV),]
+```
+
+Remove low-abundance species that appear in less than 10% of the mean number of samples:    
+Note: When collecting species that make it through the prevalence filter, do not name this variable "species", it will give an error "object of type 'closure' is not subsettable" when subsetting it.
+```{r}
+library("dplyr")
+# How many samples represent 10% of total number of samples?
+nsamples(ps2Species) # 44
+unique(sample_data(ps2Species)$ExtractionKit)
+x <- aggregate(data.frame(SampleSize = sample_data(ps2Species)$ExtractionKit), list(ExtractionKit = sample_data(ps2Species)$ExtractionKit), length)
+prevFilter <- mean(x$SampleSize)*0.1
+# When getting prevalence filter, set it to be the number that is 10% of the mean number of samples
+arrange(filter(prevalenceTblSpecies, TotalPrevalence > prevFilter))
+# Filter-out low-abundance species that appear in less than the value of the prevalence fitler "prevFilter" calculated above:
+spps <- subset(prevalenceTblSpecies, prevalenceTblSpecies$TotalPrevalence > prevFilter) 
+ps2SpeciesFiltered  <- subset_taxa(ps2Species, Species %in% spps$Species)
+rank_names(ps2SpeciesFiltered)
+table(tax_table(ps2SpeciesFiltered)[, "Species"])
+tax_table(ps2SpeciesFiltered)
+```
+
+Taxa prevalence versus total counts after filtering. Each point is a different taxa. Exploration of the data in this way is often useful for selecting filtering parameters, like the minimum prevalence criteria we will used to filter the data above.
+```{r}
+library(ggplot2)
+prevdf1 = subset(prevDf, Species %in% get_taxa_unique(ps2SpeciesFiltered, "Species"))
+ggplot(prevdf1, aes(TotalAbundance, Prevalence / nsamples(ps),color=Species)) +
+ # Include a guess for parameter
+ geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) + geom_point(size = 2, alpha = 0.7) +
+ scale_x_log10() + xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
+ facet_wrap(~Species) + theme(legend.position="none")
+```
+```{r}
+head(taxa_names(ps2SpeciesFiltered))
+head(tax_table(ps2SpeciesFiltered)[,7]) # The number in brackets is the column number for the taxanomic rank. Column 7 reaches to species.
+table(tax_table(ps2SpeciesFiltered)[,7])
+```
+How many species would be present after filtering?
+```{r}
+length(get_taxa_unique(ps2SpeciesFiltered, taxonomic.rank = "Species"))
+```
+Now lets filter out samples (outliers and low performing samples)
+Do some simple ordination looking for outlier samples, first we variance stabilize the data with a log transform, then perform PCoA using bray’s distances
+```{r}
+logt <- phyloseq::transform_sample_counts(ps2SpeciesFiltered, function(x) log(1 + x) )
+# You can see if some samples have 0 sample counts:
+sample_sums(logt)
+```
+```{r}
+# Must filter out zero-abundance species for next command to work
+minReads <- 1
+logt <- prune_samples(sample_sums(logt) >= minReads, logt)
+sample_sums(logt)
+```
+
+```{r}
+out.pcoa.logt <- phyloseq::ordinate(logt, method = "PCoA", distance = "bray")
+evals         <- out.pcoa.logt$values$Eigenvalues
+png(file = paste(ggplotsPath, "/PCoA_distanceBray_COI_all", ".png", sep = ""))
+pcoa <- phyloseq::plot_ordination(logt, out.pcoa.logt, type = "Sample", 
+                                  color = "ExtractionKit") + 
+  ggplot2::labs(col = "ExtractionKit") +
+  coord_fixed(sqrt(evals[2] / evals[1])) +
+  ggtitle("PCoA distance Bray ordinate plot for genera -vs- extraction kit for all COI samples") +
+  theme(plot.title = element_text(hjust = 0.5))
+print(pcoa)
+dev.off()
+pcoa
+```
+```{r}
+# Visualize alpha-diversity:
+library("ggplot2")
+png(file = paste(ggplotsPath, "/alphaDiversity_corrected_COI_all", ".png", sep = ""))
+alphaDiversityCorrected <- plot_richness(logt, x="ExtractionKit", measures=c("Shannon", "Simpson"), color="Sample",
+                                         title = "Alpha diversity of all COI samples by extraction kit")+ 
+  theme(plot.title = element_text(hjust = 0.5))
+print(alphaDiversityCorrected)
+dev.off()
+# Visualize alpha-diversity:
+alphaDiversityCorrected
+```
+In response to the error above, everything is okay when looking at Shannon and Simpson - just not for Chao:    
+https://github.com/benjjneb/dada2/issues/214    
+"DADA2 does not call singletons, due to the difficulty of differentiating rare singleton errors from real singleton variants.
+
+This means you should not use the output of DADA2 to estimate richness (eg. Chao S1). However, you shouldn't have been doing that with the output of other methods either, as the high levels of FP singletons made richness estimates wrong anyway. Right now, I don't think a method exists that can make valid richness estimates from high-throughput amplicon data due to the difficulty of calling singletons accurately, and the sensitivity of richness estimation to the number of singletons.
+
+Other measures of diversity that aren't totally reliant on singletons, eg. Shannon/Simpson, are valid to use, and you can ignore the warning in phyloseq when calculating those measures.""
+
+```{r}
+# Transform data to proportions as appropriate for Bray-Curtis distances
+ps.prop <- transform_sample_counts(logt, function(otu) otu/sum(otu))
+ord.nmds.bray <- ordinate(ps.prop, method="NMDS", distance="bray")
+```
+
+```{r}
+png(file = paste(ggplotsPath, "/brayNMDS_ordinationPlot_COI_all", ".png", sep = ""))
+
+brayNMDS <- plot_ordination(ps.prop, ord.nmds.bray, color="ExtractionKit", title="Bray NMDS") +
+  ggtitle("Bray NMDS of all COI samples by extraction kit") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(brayNMDS)
+dev.off()
+
+brayNMDS
+```
+
+```{r}
+# Bar plot:
+top20 <- names(sort(taxa_sums(logt), decreasing=TRUE))[1:102] # Some unique asvs may group together at the species level and thus decrease the top 20 count, so manually increase this until 20 species get included in the abundance graph.
+ps.top20 <- transform_sample_counts(logt, function(OTU) OTU/sum(OTU))
+ps.top20 <- prune_taxa(top20, ps.top20)
+```
+
+```{r}
+library("phyloseq")
+library("ggplot2")
+library("dplyr")
+df <- psmelt(logt)
+df$group <- paste0(df$Phylum, "-", df$Family, sep = "")# Need to fix the group names by removing the extra characters in the names
+df$group <- sub("p__", "", df$group)
+df$group <- sub("f__", "", df$group)
+df$ScientificName <- paste0(df$Genus, "-", df$Species, sep = "")
+df$ScientificName <- sub("g__", "", df$ScientificName)
+df$ScientificName <- sub("s__", "", df$ScientificName)
+df$ScientificName <- sub("-", "_", df$ScientificName)
+df$Kingdom <- sub("k__", "", df$Kingdom)
+df$Phylum <- sub("p__", "", df$Phylum)
+df$Class <- sub("c__", "", df$Class)
+df$Order <- sub("o__", "", df$Order)
+df$Family <- sub("f__", "", df$Family)
+df$Genus <- sub("g__", "", df$Genus)
+df$Species <- sub("s__", "", df$Species)
+df %>% dplyr::count(Phylum) %>% arrange(desc(n))
+# Therefore, in the final phyloseq, the only phyla are Eukaryota and Bacteria.    
+```
+```{r}
+df2 <- psmelt(ps.top20)
+df2 %>% dplyr::count(Phylum) %>% arrange(desc(n))
+# Therefore, in the top 20 species, the phyla fall under Eukaryota and Bacteria.
+df2$group <- paste0(df2$Phylum, "-", df2$Family, sep = "")
+df2$group <- sub("p__", "", df2$group)
+df2$group <- sub("f__", "", df2$group)
+df2$ScientificName <- paste0(df2$Genus, "-", df2$Species, sep = "")
+df2$ScientificName <- sub("g__", "", df2$ScientificName)
+df2$ScientificName <- sub("s__", "", df2$ScientificName)
+df2$ScientificName <- sub("-", "_", df2$ScientificName)
+```
+Abundance of top 20 species plot, using df2:
+```{r}
+png(file = paste(ggplotsPath, "/top20SpeciesAbundanceSciNames_COI_all", ".png", sep = ""))
+sppAbundanceTop20_SciNames <- ggplot(df2, aes_string(x = "ExtractionKit", y = "Abundance", fill = "ScientificName"),
+                                     title = "Abundance of top 16 species for all COI samples by extraction kit",
+                                     facet_grid = ~sample_Sample) +
+  geom_bar(aes(color = ScientificName, fill = ScientificName), stat = "identity", position = "stack") +
+  ggtitle("Abundance of top 16 species for all COI samples by extraction kit") + 
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  theme(axis.text = element_text(angle = 90, vjust = 0.5, hjust = 1))+
+  guides(col=guide_legend(ncol=2)) # This splits the legend into 2 columns for readability.
+print(sppAbundanceTop20_SciNames)
+dev.off()
+sppAbundanceTop20_SciNames
+```
+Using df with edited Kingdom, Phylum, Class, etc edited:
+
+# Therefore, in the final phyloseq, the most abundant phyla fall under Eukaryota (majority) and Bacteria.    
+```{r}
+phylums <- c("Eukaryota", "Bacteria")
+df3 <- df
+df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n))
+df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Eukaryota")
+df3 %>% dplyr::count(Phylum, Family) %>% arrange(desc(n)) %>% filter(Phylum == "Bacteria")
+```
+
+```{r}
+eukaryota <- c("Insecta", "Oomycetes", "Bacillariophyceae")
+bacteria <- c("Alphaproteobacteria", "Betaproteobacteria", "Gammaproteobacteria")
+```
+
+```{r}
+df3$Phylum[!df3$Phylum %in% phylums] <- "Others"
+df3$Family[!df3$Phylum %in% phylums] <- "Others"
+
+df3$Family[df3$Phylum=="Eukaryota" & 
+ !df3$Family %in% eukaryota] <- "Other Eukaryota"
+
+df3$Family[df3$Phylum=="Bacteria" &
+ !df3$Family %in% bacteria] <- "Other Bacteria"
+```
+
+```{r}
+library("forcats")
+library("dplyr")
+df4 <- select(df3, ExtractionKit, Phylum, Family) %>%
+  mutate(Phylum=factor(Phylum, levels=c(phylums, "Others")),
+         Family=fct_reorder(Family, 10*as.integer(Phylum) + grepl("Others", Family))) %>%
+#  group_by(Family)
+  group_by(Family) %>%  # For this dataset only
+  sample_n(3)         # Otherwise, unnecessary
+```
+
+Uses the custom colour pallet multi function
+```{r}
+colours <- ColourPalleteMulti(df4, "Phylum", "Family")
+```
+
+```{r}
+library(ggplot2)
+png(file = paste(ggplotsPath, "/relativeAbundance_all_COI", ".png", sep = ""))
+relativeAbundance <- ggplot(df4, aes(x=ExtractionKit, fill = Family)) + 
+  geom_bar(position="fill", colour = "grey") +  # Stacked 100% barplot
+  scale_fill_manual("", values=colours) +
+  theme(axis.text.x=element_text(angle=90, vjust=0.5)) +  # Vertical x-axis tick labels
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(y="Relative abundance")
+
+print(relativeAbundance)
+dev.off()
+relativeAbundance
+```
+```{r}
+coord_fam = df4 %>% select(Phylum, Family) %>% unique()  %>% ungroup()%>%mutate(x= c(rep(1,nrow(.))), y=1:nrow(.))
+coord_phylum = coord_fam %>% group_by(Phylum) %>% summarise(x=mean(x),ymid= mean(y),
+                                                           ymin=min(y), ymax=max(y))
+v=0.3
+p2 = coord_fam %>% ggplot()+
+  geom_point(aes(0.05,y, col= Family), size=8 )+
+  scale_x_continuous(limits = c(0, 2)) +
+  geom_segment(data = coord_phylum,
+               aes(x = x + 0.1, xend = x + v, y= ymax, yend=ymax), col="black")+
+  
+  geom_segment(data = coord_phylum,
+               aes(x = x + 0.1, xend = x + v, y= ymin, yend=ymin))+
+  
+  geom_segment(data = coord_phylum,
+               aes(x = x + v, xend = x + v, y= ymin, yend=ymax))+
+  
+  geom_text(data = coord_phylum, aes(x = x + v+0.5, y = ymid, label = Phylum)) +
+  geom_text(data = coord_fam, aes( x=0.6, y=y, label=Family, col=Family))+
+  geom_text(data = coord_fam, aes( x=0.6, y=y, label=Family), alpha=0.9,col="grey50")+
+  scale_colour_manual(values = colours)+
+  theme_void()+theme(legend.position = "none")+ 
+  scale_y_reverse()
+p2
+```
+```{r}
+library("patchwork")
+p1 <- ggplot(df4, aes(x=ExtractionKit, fill = Family)) + 
+  geom_bar(position="fill", colour = "grey", show.legend = FALSE) +  # Stacked 100% barplot
+  scale_fill_manual("", values=colours) +
+  theme(axis.text.x=element_text(angle=90, vjust=0.5)) +  # Vertical x-axis tick labels
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(y="Relative abundance")
+p1+p2 + plot_layout(ncol=2, heights = c(100,1), widths = c(1,2))
+png(file = paste(ggplotsPath, "/AbundanceMainPhylumsFamilies_all_COI", ".png", sep = ""))
+print(p1+p2 + plot_layout(ncol=2, heights = c(100,1), widths = c(1,2)))
+dev.off()
+```
+
+```{r}
+save.image(paste(imageDirPath, chptImage, sep = ""))
+```
+
