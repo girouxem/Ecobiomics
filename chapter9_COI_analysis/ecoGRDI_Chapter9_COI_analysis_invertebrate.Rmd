@@ -8,7 +8,7 @@ geometry: margin=1in
 urlcolor: blue
 header-includes: \usepackage{xcolor}
 ---
-
+*** 26Nov2021: To do: Get abundance plots and richness for insecta separately.
 
 ```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
 library("knitr")

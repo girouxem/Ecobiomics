@@ -225,7 +225,7 @@ https://github.com/benjjneb/dada2/issues/214
 
 This means you should not use the output of DADA2 to estimate richness (eg. Chao S1). However, you shouldn't have been doing that with the output of other methods either, as the high levels of FP singletons made richness estimates wrong anyway. Right now, I don't think a method exists that can make valid richness estimates from high-throughput amplicon data due to the difficulty of calling singletons accurately, and the sensitivity of richness estimation to the number of singletons.
 
-Other measures of diversity that aren't totally reliant on singletons, eg. Shannon/Simpson, are valid to use, and you can ignore the warning in phyloseq when calculating those measures.""
+Other measures of diversity that aren't totally reliant on singletons, eg. Shannon/Simpson, are valid to use, and you can ignore the warning in phyloseq when calculating those measures."
 
 ```{r}
 # Transform data to proportions as appropriate for Bray-Curtis distances
