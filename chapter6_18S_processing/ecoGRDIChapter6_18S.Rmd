@@ -8,60 +8,47 @@ geometry: margin=1in
 urlcolor: blue
 header-includes: \usepackage{xcolor}
 ---
-
 ```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
-#Set the global options for knitr
-library(knitr)
-opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy = TRUE, fig.align='center',
-               cache=FALSE, collapse=TRUE, echo=FALSE, eval=FALSE, include=FALSE,
-               message=FALSE, quietly=TRUE, results='hide', warn.conflicts=FALSE, 
-               warning=FALSE)
-hook_output = knit_hooks$get('output')
-knit_hooks$set(output = function(x, options) {
-  # this hook is used only when the linewidth option is not NULL
-  if (!is.null(n <- options$linewidth)) {
-    x = knitr:::split_lines(x)
-    # any lines wider than n should be wrapped
-    if (any(nchar(x) > n)) x = strwrap(x, width = n)
-    x = paste(x, collapse = '\n')
-  }
-  hook_output(x, options)
-})
+library("knitr")
+opts_chunk$set(tidy.opts=list(width.cutoff = 80), tidy = TRUE, fig.align = 'center',
+               cache = FALSE, collapse = TRUE, echo = FALSE, eval = FALSE, include = FALSE,
+               message = FALSE, quietly = TRUE, results = 'hide', warn.conflicts = FALSE, 
+               warning = FALSE)
 ```
 
-```{r, installation1, eval=TRUE, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
-#Installing required packages
-r = getOption("repos")
-r["CRAN"] = "http://cran.us.r-project.org"
+**Using package `BiocManager` to install required packages:**
+```{r, biocInstall, eval=TRUE, echo=TRUE, include=TRUE, cache=TRUE, tidy=FALSE, message=FALSE}
+r <- getOption("repos")
+r["CRAN"] <- "http://cran.us.r-project.org"
 options(repos = r)
-install.packages("knitr")
-install.packages("rprojroot")
-install.packages("data.table")
-install.packages("kableExtra")
-install.packages("cowplot")
-source("http://bioconductor.org/biocLite.R")
-biocLite("BiocStyle")
 
-library("BiocStyle")
-.cran_packages <- c("ggplot2", "gridExtra")
-.bioc_packages <- c("dada2", "phyloseq", "DECIPHER", "phangorn")
+if (!requireNamespace("BiocManager"))
+    install.packages("BiocManager")
+BiocManager::install()
+
+library("BiocManager")
+.cran_packages <- c("cowplot", "data.table", "ggplot2", "knitr", "rprojroot")
+.bioc_packages <- c("BiocStyle", "Biostrings", "dada2", 
+                    "ShortRead")
 .inst <- .cran_packages %in% installed.packages()
 if(any(!.inst)) {
    install.packages(.cran_packages[!.inst])
 }
 .inst <- .bioc_packages %in% installed.packages()
 if(any(!.inst)) {
-   source("http://bioconductor.org/biocLite.R")
-   biocLite(.bioc_packages[!.inst], ask = F)
+  BiocManager::install(.bioc_packages[!.inst], ask = FALSE)
 }
-sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
 ```
 
+**Load packages into session, and print package versions:**
+```{r, showBiocPackages, echo=TRUE, eval=TRUE, include=TRUE, results='hold', cache=TRUE}
+sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
+```
 
 ```{r sourcing_my_functions, echo=FALSE, eval=TRUE, include=FALSE, cache=TRUE}
 #Source our custom R scripts:    
 #For this we will use the rprojroot package to set the directory structures. This will help us when finding our files to source functions. We specify ours is an RStudio project. The root object contains a function that will help us locate our package R files regarless of our current working directory.
-library(rprojroot)
+library("rprojroot")
 root <- rprojroot::is_rstudio_project
 scriptsPath <- root$make_fix_file(".")("R")
 scripts  <- dir(root$find_file("R", path = root$find_file()))
@@ -76,6 +63,12 @@ thisImage <- "ecobiomics_StartUp.RData"
 chptImage <- "ecobiomics_18S.RData"
 save.image(paste(imageDirPath, chptImage, sep = ""))
 load(paste(imageDirPath, chptImage, sep = ""))
+```
+\pagebreak    
+**Load the saved image**
+```{r, loadBaseImage, echo=TRUE, eval=FALSE, include=TRUE, results='hold'}
+load(paste(imageDirPath, startUpImage, sep = ""))
+save.image(paste(imageDirPath, startUpImage, sep = ""))
 ```
 
 **Load the saved image from Chapter 1**, then save it as a separate image to retain environment data specific to the 18S processing and analysis workflow.
@@ -99,7 +92,7 @@ metadataRegion <- metadata18S
     
 1. ggPlotRaw 18S:
 ```{r ggPlotRaw, eval=TRUE, include=TRUE, echo=TRUE, fig.show='hold', message=FALSE, tidy=FALSE, linewidth=60, cache=TRUE}
-library(ggplot2)
+library("ggplot2")
 plotRawQFwd <- plotQualityProfile(paste(metadataRegion$rawFastqPath[1:2], metadataRegion$rawR1[1:2], sep = "")) +
   ggtitle("Quality Plot of Unprocessed Forward Reads for the 1st two Samples") +
   theme(plot.title = element_text(hjust = 0.5))
@@ -108,7 +101,7 @@ plotRawQRev <- plotQualityProfile(paste(metadataRegion$rawFastqPath[1:2], metada
   ggtitle("Quality Plot of Unprocessed Reverse Reads for the 1st two Samples") +
   theme(plot.title = element_text(hjust = 0.5))
 
-library(cowplot)
+library("cowplot")
 plot_grid(plotRawQFwd, plotRawQRev, nrow = 2)
 ```
 
@@ -165,7 +158,7 @@ PrimerHits <- function(primer, fn) {
 ```
 Before checking our 18S sequences for primers with cutadapt, we need to remove those sequences with ambiguous bases. Ambiguous bases (Ns) in the sequencing reads makes accurate mapping of short primer sequences difficult, so we "pre-filter" these sequences so that we only remove those with Ns and perform no other fitlering.
 ```{r, filterNsfqs, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, linewidth=80}
-library(dada2)
+library("dada2")
 # Path to the processed fastq file directory:
 processedFastq <- paste(sharedPathReg, "processedFQ", sep = "")
 if(!dir.exists(processedFastq)) dir.create(processedFastq)
@@ -294,7 +287,7 @@ Run filterAndTrim using cutadapt-ed fastq files as input:
 trimOut <- filterAndTrim(cutFqs, filtFwd, cutRqs, filtRev,
                          maxN = 0, maxEE = c(3,3), truncQ = 2, 
                          rm.phix = TRUE, compress = TRUE,
-                         matchIDs = TRUE, multithread = TRUE, verbose = TRUE)
+                         matchIDs = TRUE, multithread = TRUE, minLen = 50, verbose = TRUE)
 ```
 \pagebreak
 Save the workspace image right after this step so it doesn't have to be repeated if R accidentally shuts down:
@@ -322,18 +315,19 @@ https://rdrr.io/bioc/dada2/man/filterAndTrim.html
      
 4. ggPlotsProcessed. Let's look at the quality plots of our filtered and processed reads for our first 2 samples to see the effects of our trimming parameters:
 ```{r, ggPlotsProcessed, eval=TRUE, include=TRUE, echo=TRUE, fig.show='hold', message=FALSE, tidy=FALSE, linewidth=80, cache=TRUE}
-library(ggplot2)
-plotQfwd <- plotQualityProfile(paste(filtPathFinal, "/", metadataRegion$LibraryName[1:2], 
-                                     "_F_filt.fastq.gz", sep = "")) +
+library("dada2")
+library("ggplot2")
+plotQfwd <- dada2::plotQualityProfile(paste(filtPathFinal, "/", metadataRegion$LibraryName[1:2], 
+                                            "_F_filt.fastq.gz", sep = "")) +
   ggtitle("Quality Plot of Processed Forward Reads for the 1st two Samples") +
   theme(plot.title = element_text(hjust = 0.5))
-plotQrev <- plotQualityProfile(paste(filtPathFinal, "/", metadataRegion$LibraryName[1:2],
-                                     "_R_filt.fastq.gz", sep = "")) +
+plotQrev <- dada2::plotQualityProfile(paste(filtPathFinal, "/", metadataRegion$LibraryName[1:2],
+                                            "_R_filt.fastq.gz", sep = "")) +
   ggtitle("Quality Plot of Processed Reverse Reads for the 1st two Samples") +
   theme(plot.title = element_text(hjust = 0.5))
 
-library(cowplot)
-plot_grid(plotQfwd, plotQrev, nrow = 2)
+library("cowplot")
+cowplot::plot_grid(plotQfwd, plotQrev, nrow = 2)
 ```
 5. keepTrimmed. Update metadata so that samples that did not have any reads that passed filtering are removed from further analysis, to avoid downstream processing errors.   
     
@@ -362,7 +356,7 @@ filtNames <- gsub("_F_filt.fastq.gz", "", filtNames)
 Run the `keepTrimmed2` chunk. We've updated our list of fastq file names, but we also need to update our metadata table so that rows that had read pairs where a direction no longer had reads after filtering are removed from the metadata table.    
 \textbf{Note:} With `data.table` and `keys` look-up, `.()` is an alias to `list()`, which is the `filtNames` we set in the previous chunk.
 ```{r, keepTrimmed2, include=TRUE, echo=TRUE, eval=FALSE, message=FALSE, cache=TRUE, tidy=FALSE}
-library(data.table)
+library("data.table")
 setkey(metadataRegion, LibraryName)
 metadatafilt <- metadataRegion[.(filtNames)] 
 metadatafilt$filtFwd <- paste(filtPathFinal, "/", metadatafilt$LibraryName, 
@@ -371,10 +365,14 @@ metadatafilt$filtRev <- paste(filtPathFinal, "/", metadatafilt$LibraryName,
                               "_R_filt.fastq.gz", sep = "")
 ```
 
-6. splitRunsMetadata. No need for this step since all ITS sequencing libraries were sequenced on the same run.
+6. splitRunsMetadata. No need for this step since all 18S sequencing libraries were sequenced on the same run.
 ```{r, splitRunsMetadata, include=TRUE, echo=TRUE, eval=FALSE, message=FALSE, cache=TRUE}
-library(data.table)
+library("data.table")
 setkey(metadatafilt, "SeqPlate")
 run <- unique(metadatafilt$SeqPlate)
 metadatafiltPlate1 <- metadatafilt[run]
+```
+
+```{r, saveImage3, eval=FALSE, echo=TRUE, include=TRUE}
+save.image(paste(imageDirPath, chptImage, sep = ""))
 ```
