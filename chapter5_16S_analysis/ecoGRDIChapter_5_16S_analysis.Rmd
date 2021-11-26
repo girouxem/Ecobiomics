@@ -11,7 +11,7 @@ header-includes: \usepackage{xcolor}
 
 ```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
 #Set the global options for knitr
-library(knitr)
+library("knitr")
 opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy = TRUE, fig.align='center',
                cache=FALSE, collapse=TRUE, echo=FALSE, eval=FALSE, include=FALSE,
                message=FALSE, quietly=TRUE, results='hide', warn.conflicts=FALSE, 
@@ -84,7 +84,7 @@ load(paste(imageDirPath, chptImage, sep = ""))
 
 Read in both sample metadata tables generated at the end of read processing:
 ```{r, echo=TRUE, eval=FALSE, message=FALSE, warning=FALSE, tidy=FALSE}
-library(data.table)
+library("data.table")
 sampleTblName <- "final_processed_metadata"
 metadata      <- fread(paste(sharedPathReg, sampleTblName, ".csv", sep = ""), 
                        sep = "auto", header = TRUE)
@@ -94,7 +94,7 @@ sampleData <- read.table(paste(sharedPathReg, sampleTblName, "_forPhyloseq.txt",
 Let's get familiar with our phyloseq object created at the end of our sequencing sample processing chapter:     
 Below I am using the ps, rather than phySeq objects. Recall from the last chunks of Chapter 2, the phySeq object is a phyloseq object without the fitGTR$tree info, while the ps object was created leveraging the fitGTR$tree information. The phySeq object can be used instead of the ps object if the optim.pml command wasn't run.
 ```{r, testCmds, eval=FALSE, include=FALSE, echo=FALSE, message=FALSE}
-library(phyloseq)
+library("phyloseq")
 rank_names(ps) # Note that for 16S data there are no determinations in the ps variable that extend to the species level
 table(tax_table(ps)[, "Genus"], exclude = NULL)
 ```
@@ -124,9 +124,9 @@ ggplotsPath <- paste(sharedPathReg, "ggplots", sep = "")
 
 Visualize alpha-diversity, genus:
 ```{r, aDiv1, eval=TRUE, include=TRUE, echo=TRUE, cache=TRUE, message=FALSE}
-library(phyloseq)
-library(ggplot2)
-library(cowplot)
+library("phyloseq")
+library("ggplot2")
+library("cowplot")
 all16SAlphaDIversity <- plot_richness(ps2Genus,
                                       x = "ExtractionKit",
                                       measures = c("Shannon", "Simpson"),
@@ -144,7 +144,7 @@ Prevalence evaluation for genera:
 Generate a table that shows the prevalence of genus present across samples:         
 Prevalence in the dataset is defined here as the number of samples in which a taxa appears at least once.
 ```{r, prevTblGenera, echo=TRUE, eval=TRUE, cache=TRUE, results='hold', include=TRUE, tidy=FALSE, message=FALSE, comment=NA}
-library(phyloseq)
+library("phyloseq")
 prevDf <- apply(X = otu_table(ps2Genus),
                 MARGIN = ifelse(taxa_are_rows(ps2Genus), yes = 1, no = 2),
                 FUN = function(x){sum(x>0)})
@@ -180,7 +180,7 @@ tax_table(ps2GenusFiltered)
 Taxa prevalence versus total counts after filtering. Each point is a different taxa. Exploration of the data in this way is often useful for selecting filtering parameters, like the minimum prevalence criteria we will used to filter the data above.
 
 ```{r}
-library(ggplot2)
+library("ggplot2")
 prevdf1 = subset(prevDf, Genus %in% get_taxa_unique(ps2GenusFiltered, "Genus"))
 ggplot(prevdf1, aes(TotalAbundance, Prevalence / nsamples(ps),color=Genus)) +
  # Include a guess for parameter
@@ -380,7 +380,7 @@ colours <- ColourPalleteMulti(df4, "Phylum", "Family")
 ```
 
 ```{r}
-library(ggplot2)
+library("ggplot2")
 png(file = paste(ggplotsPath, "/relativeAbundance_all_16S", ".png", sep = ""))
 relativeAbundance <- ggplot(df4, aes(x=ExtractionKit, fill = Family)) + 
   geom_bar(position="fill", colour = "grey") +  # Stacked 100% barplot
@@ -431,4 +431,16 @@ p1+p2 + plot_layout(ncol=2, heights = c(100,1), widths = c(1,2))
 png(file = paste(ggplotsPath, "/AbundanceMainPhylumsFamilies_all_16S", ".png", sep = ""))
 print(p1+p2 + plot_layout(ncol=2, heights = c(100,1), widths = c(1,2)))
 dev.off()
+```
+```{r}
+save.image(paste(imageDirPath, chptImage, sep = ""))
+```
+
+```{r}
+library("vegan")
+counts_tab <- data.frame(taxa_sums(ps2GenusFiltered))
+sample_info_tab <- sample_data(ps2GenusFiltered)
+sample_info_tab$color <- sample_info_tab$ExtractionKit
+sample_info_tab$color <- as.character(sample_info_tab$color)
+rarecurve(t(counts_tab), step=100, col=sample_info_tab$color, lwd=2, ylab="ASVs", label = F)
 ```

@@ -11,7 +11,7 @@ header-includes: \usepackage{xcolor}
 
 ```{r, global_options, eval=TRUE, echo=FALSE, cache=TRUE}
 #Set the global options for knitr
-library(knitr)
+library("knitr")
 opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy = TRUE, fig.align='center',
                cache=FALSE, collapse=TRUE, echo=FALSE, eval=FALSE, include=FALSE,
                message=FALSE, quietly=TRUE, results='hide', warn.conflicts=FALSE, 
