@@ -107,7 +107,6 @@ rdp16SsetPath <- paste(dada2DBs, rdp16Sset, sep = "/")
 rdp16SsppPath <- paste(dada2DBs, rdp16Sspp, sep = "/")    
 silvaSetPath  <- paste(dada2DBs, silvaSet, sep = "/")    
 silvaSppPath  <- paste(dada2DBs, silvaSpp, sep = "/")    
-#gGenesSetPath <- paste(dada2DBs, gGenesSet, sep = "/")    
 uniteSetPath  <- paste(dada2DBs, uniteSet, sep = "/") 
 coiSetDirPath <- paste(dada2DBs, coiSetDir, sep = "/")
 
