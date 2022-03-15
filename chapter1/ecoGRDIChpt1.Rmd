@@ -156,7 +156,7 @@ sharedPathAn <- paste(sharedPath, analysis, sep = "/")
 This table has the read pairs already collapsed to one row each.
 ```{r, readMetadata, echo=TRUE, eval=TRUE, include=TRUE, tidy=FALSE}
 library("data.table")
-metadataName <- "ecobiomics_metadata_edited_Emily19Aug2019.csv"
+metadataName <- "ecobiomics_metadata_edited_Emily19Aug2019_ALL_SAMPLES_BIG_OVERVIEW.csv"
 metadataPath <- paste(sharedPathAn, metadataName, sep = "/")
 metadata     <- data.table::fread(metadataPath, sep = "auto", header = TRUE)
 ```
