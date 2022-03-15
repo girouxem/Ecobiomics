@@ -58,31 +58,34 @@ lapply(scriptsl, source)
 The DADA2 tutorial website contains formatted training fastas for the RDP training set, GreenGenes clustered at 97% identity, and the Silva reference database available. For fungal taxonomy, the General Fasta release files from the UNITE ITS database can be used as is. Download the database files and place them in a designated databases directory.   
     
 **Obtain databases:**    
-Complete the following on the biocluster.  Create a designated directory for DADA2 databases and download the SILVA, UNITE and RDP databases into it.
+Complete the following on the biocluster.  Create a designated directory for DADA2 databases and download the SILVA, UNITE and RDP databases into it.    
+     
+** Note **    
+This directory has already been created for us in Emily's directory - so instructions to create it are for new/outside users of this script.
 ```{bash, eval=FALSE, echo=TRUE, include=TRUE}
-mkdir ~/Databases/dada2DBs
-cd ~/Databases/dada2DBs
+# mkdir ~/Databases/dada2DBs
+# cd ~/Databases/dada2DBs
 ```
     
 SILVA: https://zenodo.org/record/1172783#.XJOpWiJKhhE    
 ```{bash, eval=FALSE, echo=TRUE, include=TRUE}
-wget https://zenodo.org/record/1172783/files/SILVA_LICENSE   
-wget https://zenodo.org/record/1172783/files/silva_nr_v132_train_set.fa.gz   
-wget https://zenodo.org/record/1172783/files/silva_species_assignment_v132.fa.gz   
+<!-- wget https://zenodo.org/record/1172783/files/SILVA_LICENSE    -->
+<!-- wget https://zenodo.org/record/1172783/files/silva_nr_v132_train_set.fa.gz    -->
+<!-- wget https://zenodo.org/record/1172783/files/silva_species_assignment_v132.fa.gz    -->
 ```
     
 RDP taxonomic classifier: https://zenodo.org/record/801828#.XJOrWiJKhhE   
 ```{bash, eval=FALSE, echo=TRUE, include=TRUE}
-wget https://zenodo.org/record/801828/files/rdp_species_assignment_16.fa.gz   
-wget https://zenodo.org/record/801828/files/rdp_train_set_16.fa.gz
+<!-- wget https://zenodo.org/record/801828/files/rdp_species_assignment_16.fa.gz    -->
+<!-- wget https://zenodo.org/record/801828/files/rdp_train_set_16.fa.gz -->
 ```
     
 UNITE: General Fasta releases (DADA2 package version 1.3.3 or later)   https://unite.ut.ee/repository.php   
 ```{bash, eval=FALSE, echo=TRUE, include=TRUE}
-wget https://files.plutof.ut.ee/public/orig/EB/0C/
-    EB0CCB3A871B77EA75E472D13926271076904A588D2E1C1EA5AFCF7397D48378.zip   
-mv EB0CCB3A871B77EA75E472D13926271076904A588D2E1C1EA5AFCF7397D48378.zip unite.zip   
-unzip unite.zip   
+<!-- wget https://files.plutof.ut.ee/public/orig/EB/0C/ -->
+<!--     EB0CCB3A871B77EA75E472D13926271076904A588D2E1C1EA5AFCF7397D48378.zip    -->
+<!-- mv EB0CCB3A871B77EA75E472D13926271076904A588D2E1C1EA5AFCF7397D48378.zip unite.zip    -->
+<!-- unzip unite.zip    -->
 ```
 
 Extensions: The DADA2 package also implements a method to make species level assignments based on exact matching between ASVs and sequenced reference strains. Recent analysis suggests that exact matching (or 100% identity) is the only appropriate way to assign species to 16S gene fragments. Currently, species-assignment training fastas are available for the Silva and RDP 16S databases. To follow the optional species addition step, download the silva_species_assignment_v128.fa.gz file into the databases directory as well.   
@@ -90,14 +93,13 @@ Extensions: The DADA2 package also implements a method to make species level ass
 **Record paths to dadabases:**        
 **Note:** The COI database was obtained from Terry Porter.
 ```{r, setDBPaths, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
-dbsPath   <- "/home/CFIA-ACIA/girouxeml/Databases"
+dbsPath   <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/Databases"
 dada2DBs  <- paste(dbsPath, "dada2DBs", sep = "/")
 
-rdp16Sset <- "rdp_train_set_16.fa"
-rdp16Sspp <- "rdp_species_assignment_16.fa"
-silvaSet  <- "silva_nr_v132_train_set.fa"
-silvaSpp  <- "silva_species_assignment_v132.fa"
-gGenesSet <- "gg_13_8_train_set_97.fa"
+rdp16Sset <- "rdp_train_set_16.fa.gz"
+rdp16Sspp <- "rdp_species_assignment_16.fa.gz"
+silvaSet  <- "silva_nr_v132_train_set.fa.gz"
+silvaSpp  <- "silva_species_assignment_v132.fa.gz"
 uniteSet  <- "unite"
 coiSetDir <- "CO1Classifier-4"
 
@@ -110,8 +112,8 @@ uniteSetPath  <- paste(dada2DBs, uniteSet, sep = "/")
 coiSetDirPath <- paste(dada2DBs, coiSetDir, sep = "/")
 
 # Note: unzip and then paste the path to the sh file:
-system2(paste("unzip ", uniteSetPath, ".zip", sep = ""))
-uniteSetSh <- paste(dada2DBs, "sh_general_release_dynamic_02.02.2019.fasta", sep = "/")
+# system2(paste("unzip ", uniteSetPath, ".zip", sep = ""))
+# uniteSetSh <- paste(dada2DBs, "sh_general_release_dynamic_02.02.2019.fasta", sep = "/")
 ```
     
 **Note for ITS sequences:**   
@@ -145,11 +147,25 @@ revAdap      <- revAdapMiSeq
 ```
    
 **User:**    
-Define the path to the shared folder where the main working directory will be.
+Add your biocluster account directory name here:
+```{r supplyUserName, echo=TRUE, eval=TRUE, include=TRUE, tidy=FALSE}
+userAccount  <- "hewapathiranam"
+```
+
+No need to edit, this will define the path to the shared folder where the main working directory will be.     
+** To do: **     
+In chunk settings, repress displaying the output of the first line in the chunk so that it is not redundant with the second line.
 ```{r setting_the_main_directory, echo=TRUE, eval=TRUE, include=TRUE, tidy=FALSE}
-sharedPath   <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory"
+sharedPath <- setSharedPath(userAccount)
+
+# to do: print message of username and what the shared path ends up being:
+# sharedPath
+```
+
+```{r}
 analysis     <- "ecobiomics"
-sharedPathAn <- paste(sharedPath, analysis, sep = "/")
+sharedPathAn <- paste(sharedPath, analysis, sep = "")
+sharedPathAn
 ```
    
 **Read in the most recently updated metadata table:**      
@@ -178,23 +194,24 @@ metadataITS <- metadata["ITS"]
 ```
 Save the image and load this at the beginning of each amplicon region processing and analysis workflow:
 ```{r, saveBaseImage, echo=TRUE, eval=TRUE, include=TRUE, results='hold'}
-imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
+imageDirPath <- paste("/isilon/cfia-ottawa-fallowfield/users/girouxeml", userAccount, "GitHub_Repos/r_environments/ecobiomics", sep = "/")
 if(!dir.exists(imageDirPath)) dir.create(imageDirPath)
 
 # Specify an image name for this chapter:
 startUpImage <- "ecobiomics_StartUp.RData"
 
 # Save this chapter's image:
-save.image(paste(imageDirPath, startUpImage, sep = ""))
+save.image(paste(imageDirPath, startUpImage, sep = "/"))
 ```
+
+
+** Note: **    
+This is the exception - users must ensure that the hard-coded path to the image directory points directly to their target location!     
 To begin, load the image from this script prior to running the analysis steps. When re-starting a session, you can quickly load up the image by running the chunk below:
 ```{r, quickImageLoad, echo=TRUE, eval=TRUE, include=TRUE, results='hold'}
-sharedPath   <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory"
-analysis     <- "ecobiomics"
-sharedPathAn <- paste(sharedPath, analysis, sep = "/")
-imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
+imageDirPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/hewapathiranam/GitHub_Repos/r_environments/ecobiomics"
 startUpImage <- "ecobiomics_StartUp.RData"
-load(paste(imageDirPath, startUpImage, sep = ""))
+load(paste(imageDirPath, startUpImage, sep = "/"))
 ```
      
 **Analyses for each amplicon region will follow these steps:**      
