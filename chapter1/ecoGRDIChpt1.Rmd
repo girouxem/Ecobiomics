@@ -163,7 +163,7 @@ sharedPath <- setSharedPath(userAccount)
 
 ```{r}
 analysis     <- "ecobiomics"
-sharedPathAn <- paste(sharedPath, analysis, sep = "")
+sharedPathAn <- paste(sharedPath, analysis, sep = "/")
 sharedPathAn
 ```
    
