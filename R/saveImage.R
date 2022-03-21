@@ -10,5 +10,9 @@ saveImage<- function(directoryUser){
   startupImage <- "ecobiomics_StartUp.RData"
   
   #Save this chapter's image:
-  save.image(paste(imageDirPath, startupImage, sep= "/"))
+  #save.image(paste(imageDirPath, startupImage, sep= "/"))
+  finalPath <- paste(imageDirPath, startupImage, sep="/")
+  save.image(finalPath)
+  return(finalPath)
+  
 }
