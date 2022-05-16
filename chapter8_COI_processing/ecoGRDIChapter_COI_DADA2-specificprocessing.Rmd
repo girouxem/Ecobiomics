@@ -58,21 +58,21 @@ sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_dire
 analysis <- "ecobiomics/"
 sharedPathAn <- paste(sharedPath, analysis, sep = "")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
-chptImageA   <- "ecobiomics_COI.RData"
+chptImageA   <- "ecobiomics_COI_full.RData"
 ```
 **Load the saved image from Chapter for COI**, then save it as a separate image to retain environment data specific to the COI processing and analysis workflow.
 ```{r, loadBaseImage, echo=TRUE, eval=FALSE, include=TRUE, results='hold'}
 load(paste(imageDirPath, chptImageA, sep = ""))
-chptImageB   <- "ecobiomics_COI_2b.RData"
+chptImageB   <- "ecobiomics_COI_2b_full.RData"
 save.image(paste(imageDirPath, chptImageB, sep = ""))
 ```
 When re-starting a session, you can quickly load up the image by running the chunk below:
 ```{r, quickImageLoad, echo=TRUE, eval=TRUE, include=TRUE, results='hold'}
 sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
 analysis <- "ecobiomics/"
-sharedPathAn <- paste(sharedPath, analysis, sep = "/")
+sharedPathAn <- paste(sharedPath, analysis, sep = "")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
-chptImageB   <- "ecobiomics_COI_2b.RData"
+chptImageB   <- "ecobiomics_COI_2b_full.RData"
 load(paste(imageDirPath, chptImageB, sep = ""))
 ```
 
@@ -152,76 +152,125 @@ Construct sequence table and print it to file:
 ```{r, makeSeqTbl1, eval=FALSE, echo=-5, include=TRUE, cache=TRUE, message=FALSE, tidy=FALSE}
 seqTabKeptMergers <- dada2::makeSequenceTable(mergersKept)
 saveRDS(seqTabKeptMergers, paste(sharedPathReg, region,
-                                 "_", metadataRegion$SeqPlate[1], 
-                                 "_seqtab_KeptSamples.rds", sep = ""))
+                                 "_pre2022runs_", # run[2], 
+                                 "seqtab_KeptSamples.rds", sep = ""))
+rm(seqTabKeptMergers)
+save.image(paste(imageDirPath, chptImageB, sep = ""))
+```
+    
+    
+Repeat the above for pool 2:    
+- errorLearningPool2. Collect the set of filtered fastq files into a list:
+```{r, errorLearningPool2, echo=TRUE, eval=FALSE, cache=TRUE, include=TRUE}
+filtFs <- metadatafiltPlate2$filtFwd
+filtRs <- metadatafiltPlate2$filtRev
+
+sampleNamesF <- sapply(strsplit(basename(filtFs), "_F_filt.fastq.gz"), `[`, 1) 
+sampleNamesR <- sapply(strsplit(basename(filtRs), "_R_filt.fastq.gz"), `[`, 1)
+if(!identical(sampleNamesF, sampleNamesR)) 
+  stop ("Forward and reverse files do not match.")
+sampleNames   <- sampleNamesF
+names(filtFs) <- sampleNames
+names(filtRs) <- sampleNames
+
+set.seed(100)
+
+library("dada2")
+# Learn forward error rates:
+errF <- dada2::learnErrors(filtFs, nbases = 1e8, randomize = TRUE,
+                           multithread = TRUE, verbose = TRUE)
+# Learn reverse error rates:
+errR <- dada2::learnErrors(filtRs, nbases = 1e8, randomize = TRUE,
+                           multithread = TRUE, verbose = TRUE)
+
+dada2::plotErrors(errF, nominalQ = TRUE)
+```
+
+- drepDadaMergePool2. Sample inference and merging of paired-end reads:
+```{r, drepDadaMergePool2, eval=FALSE, echo=TRUE, include=TRUE, cache=TRUE, message=FALSE, tidy=FALSE}
+mergers <- vector("list", length(sampleNames))
+names(mergers) <- sampleNames
+ddFs <- vector("list", length(sampleNames))
+names(ddFs) <- sampleNames
+ddRs <- vector("list", length(sampleNames))
+names(ddRs) <- sampleNames
+
+for(sam in sampleNames) {
+  cat("Processing:", sam, "\n")
+    derepF <- dada2::derepFastq(filtFs[[sam]])
+    ddF    <- dada2::dada(derepF, err = errF, multithread = TRUE, verbose = TRUE)
+    ddFs[[sam]] <- ddF
+    derepR <- dada2::derepFastq(filtRs[[sam]])
+    ddR    <- dada2::dada(derepR, err = errR, multithread = TRUE, verbose = TRUE)
+    ddRs[[sam]] <- ddR
+    merger <- dada2::mergePairs(ddF, derepF, ddR, derepR,
+                         maxMismatch = 1, verbose = TRUE)
+    mergers[[sam]] <- merger
+}
+rm(derepF); rm(derepR)
+save.image(paste(imageDirPath, chptImageB, sep = ""))
+
+# Remove those samples that have no remaining reads:
+dfToKeep    <- mergers[sapply(mergers, function(x) any(x$abundance > 0))]
+mergersKept <- dfToKeep
+samNamesKeptMergers <- names(mergersKept)
+
+# See which samples were dropped because they had no remaining reads:
+names(mergers[sapply(mergers, function(x) all(x$abundance == 0))])
+
+seqTabKeptMergers <- dada2::makeSequenceTable(mergersKept)
+saveRDS(seqTabKeptMergers, paste(sharedPathReg, region,
+                                 "_2022run_", #run[1], 
+                                 "seqtab_KeptSamples.rds", sep = ""))
 rm(seqTabKeptMergers)
 save.image(paste(imageDirPath, chptImageB, sep = ""))
 ```
 
+
 9. mergeSplitRuns. \textbf{Note:}    
-This next step is not needed for our COI set since they were all sequenced on the same run.    
+This next step is needed to combine the latest 2022 sequencing runs with the older runs.    
+```{r}
+library(dada2)
+stPlateKept1 <- readRDS(paste(sharedPathReg, region, "_pre2022runs_", "seqtab_KeptSamples.rds", sep = ""))
+stPlateKept2 <- readRDS(paste(sharedPathReg, region, "_2022run_", "seqtab_KeptSamples.rds", sep = ""))
+stAllKept <- mergeSequenceTables(stPlateKept1, stPlateKept2)
+
+write.table(stPlateKept1, 
+            paste(sharedPathReg, "stPlateKept1TroubleShoot.csv", sep = ""), 
+            sep = ",", row.names = TRUE, quote= FALSE)
+
+write.table(stPlateKept2, 
+            paste(sharedPathReg, "stPlateKept2TroubleShoot.csv", sep = ""), 
+            sep = ",", row.names = TRUE, quote= FALSE)
+
+rm(stPlateKept1, stPlateKept2)
+```
 
 10. remChimeric. Remove chimeric sequences from the sequence table.
 ```{r, remChimeric, echo=-2, eval=FALSE, cache=TRUE, include=TRUE, tidy=FALSE}
-stAllKept <- readRDS(paste(sharedPathReg, region,
-                                 "_", metadataRegion$SeqPlate[1], 
-                                 "_seqtab_KeptSamples.rds", sep = ""))
 seqTabKept <- dada2::removeBimeraDenovo(stAllKept, method = "consensus",
                                         multithread = TRUE, verbose = TRUE)
+
 save.image(paste(imageDirPath, chptImageB, sep = ""))
-# Identified 467 bimeras out of 4747 input sequences.
+# Identified 1300 bimeras out of 8114 input sequences.
 ```
 
 Let's see how many sequences we lost after removing chimeric sequences:
 ```{r, sumsSesChim, echo=-1, eval=TRUE, cache=TRUE, warning=FALSE, message=FALSE, comment=NA, include=TRUE}
 1-sum(seqTabKept)/sum(stAllKept)
-# [1] 0.03374978
+# [1] 0.03984475
 ```
 Good - we lost less than 4% when removing chimeric sequences. Also - notice that this number doesn't change if we compare the set with and without the samples with no reads removed, which is what we expect.          
      
-Note that the samples we removed from the mergers dataframe list are not included in the summary table since they had no remaining reads by the end of read processing.   
-Overview of counts througout:     
-For this set, we will use the mergers without empty samples removed, so that we can see the reads remaining throughout our pipeline.
-```{r, prntLostSmplsCnts, eval=TRUE, echo=TRUE, cache=TRUE, comment=NA, include=TRUE, message=FALSE}
-# Set a simple function:
-GetN <- function(x) sum(getUniques(x))
-# Keep only sample names remaining in seqTabKept
-seqTabKeptNames <- row.names(seqTabKept)
-sampleNamesKept <- intersect(sampleNames, seqTabKeptNames)
-# Keep only rows in trimOut that match value in seqTabKeptNames vector:
-trimOutKept <- subset(trimOut, rownames(trimOut) %in% seqTabKeptNames)
-# Keep only elements in ddFs and ddRs that are in the seqTabKeptNames vector:
-ddFsKept <- ddFs[seqTabKeptNames]
-ddRsKept <- ddRs[seqTabKeptNames]
-# Generate a simple table for tracking:
-summaryTbl <- data.frame(row.names = sampleNamesKept,
-                         input = trimOutKept[,1],
-                         filtered = trimOutKept[,2],
-                         dadaF = sapply(ddFsKept, GetN),
-                         dadaR = sapply(ddRsKept, GetN),
-                         merged = sapply(mergersKept, GetN),
-                         nonchim = rowSums(seqTabKept),
-                         finalPercReadsKept = round(
-                           rowSums(seqTabKept)/trimOutKept[,1]*100, 1))
-rownames(summaryTbl) <- sampleNamesKept
-head(summaryTbl)
-```
-
-Write our tracking results into a csv file:
-```{r, prntReadCnts, eval=TRUE, echo=TRUE, cache=TRUE, comment=NA, include=TRUE}
-write.csv(summaryTbl,
-          file = paste(sharedPathReg, "readCountTracking.csv", sep = ""),
-          row.names =TRUE)
-
-# Show the samples that have no remaining reads by the end of processing:
-subset(sampleNames, !(sampleNames %in% sampleNamesKept))
+```{r}
+# Gather the same names from the seqTabKept matrix - this will have the sample names of both plate 1 and plate 4 merged together
+samples <- row.names(seqTabKept)
 ```
 
 Generate a final metadata table that includes only those samples that had reads surviving the processing steps: 
 ```{r, newMtdataTbl, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
 library("data.table")
 data.table::setkey(metadatafilt, "LibraryName")
-samples <- sampleNamesKept
 metadataFinal <- metadatafilt[samples]
 
 # Write our final metadata table to a csv file:
@@ -231,7 +280,9 @@ write.table(metadataFinal,
             sep = ",", row.names = FALSE, quote= FALSE)
 ```
 
+
 ```{r}
+coiSetDirPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/Databases/dada2DBs/CO1Classifier-4"
 coiV4refFasta <- paste(coiSetDirPath, "mydata_ref", "mytrainseq.fasta", sep = "/")
 coiV4refTaxon <- paste(coiSetDirPath, "mydata_ref", "mytaxon.txt", sep = "/")
 coiV4trainedDir <- paste(coiSetDirPath, "mydata_trained", sep = "/")
@@ -240,9 +291,19 @@ coiV4trainedDir <- paste(coiSetDirPath, "mydata_trained", sep = "/")
 
 11. assignTax. Assign taxonomy - COI database for COI sequences:    
 ```{r, assignTax, echo=-3, eval=FALSE, cache=TRUE, include=TRUE, tidy=FALSE}
-taxTab <- dada2::assignTaxonomy(seqTabKept, refFasta = coiV4refFasta, multithread = TRUE, verbose = TRUE)
-
+taxTab <- dada2::assignTaxonomy(seqTabKept, refFasta = coiV4refFasta, multithread = TRUE, tryRC = TRUE, verbose = TRUE)
+# taxTab2test <- dada2::assignTaxonomy(seqTabKept2Test, refFasta = coiV4refFasta, multithread = TRUE, verbose = TRUE)
 save.image(paste(imageDirPath, chptImageB, sep = ""))
+
+# prefix <- paste("C_assignTaxonomy", region, sep = "_")
+# cmd <- paste("load('", paste(imageDirPath, chptImageB, sep = ""), "')\n",
+#              'library("dada2")\n',
+#              'taxTab <- dada2::assignTaxonomy(seqTabKept, refFasta = coiV4refFasta, multithread = TRUE, tryRC = TRUE, verbose = TRUE)\n',
+#              "save.image('", paste(imageDirPath, 
+#                                    "assignTax_", chptImageB, sep = ""), "')\n",
+#              'detach("package:dada2", unload = TRUE)',
+#              sep = "")
+# MakeRQsubs(cmd, prefix)
 ```
 
 12. Inspect the taxonomic assignments:
@@ -250,6 +311,7 @@ save.image(paste(imageDirPath, chptImageB, sep = ""))
 taxaPrint <- taxTab  # Removing sequence rownames for display only
 rownames(taxaPrint) <- NULL
 head(taxaPrint)
+unique(taxaPrint)
 ```
 
 Extract the standard goods from R:
@@ -307,7 +369,7 @@ save.image(paste(imageDirPath, "fitGTR_", chptImageB, sep = ""))
 ```
 Use this chunk to run the above 2 chunks as qsubs on the biocluster instead of interactively.
 ```{r, phangAlignFitGTRQsub, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
-prefix <- paste("B_fitGTRTree_R_mergedSeqPlatesData", region, sep = "_")
+prefix <- paste("B_fitGTRTree_R_mergedRuns", region, sep = "_Full")
 cmd <- paste("load('", paste(imageDirPath, chptImageB, sep = ""), "')\n",
              'library("phangorn")\n',
              'seqs       <- dada2::getSequences(seqTabKept)\n',
@@ -372,9 +434,9 @@ Prepare the phyloseq objects - one that includes the data obtained from the dist
 ```{r, makePhyloseq, echo=-1, eval=FALSE, include=TRUE, tidy=FALSE}
 library("phyloseq")
 # phyloseq object that does not include tree:
-phySeq   <- phyloseq::phyloseq(otu_table(seqTabKept, taxa_are_rows = FALSE),
-                               sample_data(sampleDataDF), 
-                               tax_table(taxTab))
+# phySeq   <- phyloseq::phyloseq(otu_table(seqTabKept, taxa_are_rows = FALSE),
+#                                sample_data(sampleDataDF), 
+#                                tax_table(taxTab))
 
 # phyloseq object that DOES include tree:
 ps <- phyloseq::phyloseq(otu_table(seqTabKept, taxa_are_rows = FALSE),
@@ -385,14 +447,14 @@ ps <- phyloseq::phyloseq(otu_table(seqTabKept, taxa_are_rows = FALSE),
 The only variable we need to save from the fitGTR image is "ps". Save this individual variable, and then load it with the chptImageB, without all the intermediate varibales.
 ```{r, finalSave, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE}
 # Save the ps variable:
-save(ps, file = paste(imageDirPath, "ps_COI.Rdata", sep = ""))
+save(ps, file = paste(imageDirPath, "ps_COI_Full.Rdata", sep = ""))
 
 # Clear the global environment, including hidden variables:
 rm(list = ls(all.names = TRUE))
 
 # Load the chptImageB and the ps variable:
-load("/isilon/cfia-ottawa-fallowfield/users/girouxeml/GitHub_Repos/r_environments/ecobiomics/ecobiomics_COI_2b.RData")
-load(paste(imageDirPath, "ps_COI.Rdata", sep = ""))
+load("/isilon/cfia-ottawa-fallowfield/users/girouxeml/GitHub_Repos/r_environments/ecobiomics/ecobiomics_COI_2b_full.RData")
+load(paste(imageDirPath, "ps_COI_Full.Rdata", sep = ""))
 
 # Save the chptImageB again so it includes the ps variable:
 save.image(paste(imageDirPath, chptImageB, sep = ""))

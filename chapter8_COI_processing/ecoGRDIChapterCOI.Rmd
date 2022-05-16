@@ -66,16 +66,16 @@ startUpImage <- "ecobiomics_StartUp.RData"
 **Load the saved image from Chapter 1**, then save it as a separate image to retain environment data specific to the COI processing and analysis workflow.
 ```{r, loadBaseImage, echo=TRUE, eval=FALSE, include=TRUE, results='hold'}
 load(paste(imageDirPath, startUpImage, sep = ""))
-chptImageA <- "ecobiomics_COI.RData"
+chptImageA <- "ecobiomics_COI_full.RData"
 save.image(paste(imageDirPath, chptImageA, sep = ""))
 ```
 When re-starting a session, you can quickly load up the image by running the chunk below:
 ```{r, quickImageLoad, echo=TRUE, eval=TRUE, include=TRUE, results='hold'}
 sharedPath <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/PIRL_working_directory/"
 analysis <- "ecobiomics/"
-sharedPathAn <- paste(sharedPath, analysis, sep = "/")
+sharedPathAn <- paste(sharedPath, analysis, sep = "")
 imageDirPath <- "/home/CFIA-ACIA/girouxeml/GitHub_Repos/r_environments/ecobiomics/"
-chptImageA   <- "ecobiomics_COI.RData"
+chptImageA   <- "ecobiomics_COI_full.RData"
 load(paste(imageDirPath, chptImageA, sep = ""))
 ```
 
@@ -83,7 +83,7 @@ load(paste(imageDirPath, chptImageA, sep = ""))
 In this chapter, we are working with the COI amplicon samples, so the COI directory within our main project directory will contain all the region-specific output.
 ```{r, setRegDir, echo=TRUE, eval=FALSE, include=TRUE, cache=TRUE}
 region <- "COI"
-sharedPathReg <- paste(sharedPathAn, "/", region, "_analysis/", sep = "")
+sharedPathReg <- paste(sharedPathAn, region, "_Full_analysis/", sep = "")
 if(!dir.exists(sharedPathReg)) dir.create(sharedPathReg)
 
 # Make the region-specific metadatable for this chapter the main metadata table:
@@ -124,17 +124,8 @@ I is from the extended IUPAC codes, and gives a probability order for C, T or G.
 **Note:**     
 There were several sets of COI gene-specific primers listed in an Excel sheet in Ian's folder, and I'm not sure which ones were used for sequencing. Here I just checked which primer sets returned the most hits to see if there was an obvious set used for this sequencing data.     
 
-COI gene-specific primers
-COI-F: ATGATHGGDGCDCCWGAYATG
-COI-R: CCWCCHCCHGCDGGRTC 
-
-Forward Complement Reverse RevComp
-FWD.ForwardReads     828          0       0     207
-FWD.ReverseReads     193          0       0    1547
-REV.ForwardReads       0          0       0       0
-REV.ReverseReads       0          0       0       0
-
-
+COI gene-specific primers    
+    
 COI-Fish
 COI-FishF1: TCAACCAACCACAAAGACATTGGCAC
 COI-Fish330R: AGNGGGGGRTANACNGTTCA
@@ -142,18 +133,27 @@ COI-Fish330R: AGNGGGGGRTANACNGTTCA
 FWD.ForwardReads       0          0       0       0
 FWD.ReverseReads       0          0       0       0
 REV.ForwardReads       0          0       0       0
-REV.ReverseReads       0          0       0       0
-
-
+REV.ReverseReads       0          0       0       0    
+    
+COI-F: ATGATHGGDGCDCCWGAYATG
+COI-R: CCWCCHCCHGCDGGRTC 
+                 Forward Complement Reverse RevComp
+FWD.ForwardReads     828          0       0     207
+FWD.ReverseReads     193          0       0    1547
+REV.ForwardReads       0          0       0       0
+REV.ReverseReads       0          0       0       0    
+    
+    
 COI-Invertebrates:
 F230: GGTCAACAAATCATAAAGATATTGG
 F230R_modN: CTTATRTTRTTTATNCGNGGRAANGC
-Forward Complement Reverse RevComp
+                 Forward Complement Reverse RevComp
 FWD.ForwardReads    6185          0       0     441
 FWD.ReverseReads     493          0       0    3312
 REV.ForwardReads     406          0       0    2693
-REV.ReverseReads    5463          0       0     366
-
+REV.ReverseReads    5463          0       0     366  
+    
+    
 COI-Invertebrates:
 F230: GGTCAACAAATCATAAAGATATTGG
 F230frag-230-R: CTTATRTTRTTTATICGIGGRAAIGC = CTTATRTTRTTTATBCGBGGRAABGC
@@ -173,7 +173,7 @@ REV.ForwardReads       0          0       0       0
 REV.ReverseReads       0          0       0       0
           
 **Results of Primer Check:**     
-The most primer hits came from the COI-Invertebrates set F230 with F230R_modN - processing will continue with this set.      
+The most primer hits for pre-2022 sets came from the COI-Invertebrates set F230 with F230R_modN - processing will continue with this set first. The 2022 sets had the most hits agaisnt the Befrag-BF with Befrag-R5-R, so they need to be processed with that set.     
       
 
 No changes are required for the forward or reverse primers as there are no extended ambiguity codes in the primer sequences:    
@@ -188,8 +188,34 @@ No changes are required for the forward or reverse primers as there are no exten
 
 
 2. Cutadapt. We are replacing the code for SeqPrep with the use of cutadapt and workflow developed by Benjamin Callahan. See page: https://benjjneb.github.io/dada2/ITS_workflow.html      
-      
-Capture your forward and reverse ITS primers:
+    
+    
+Before checking our COI sequences for primers with cutadapt, we need to remove those sequences with ambiguous bases. Ambiguous bases (Ns) in the sequencing reads makes accurate mapping of short primer sequences difficult, so we "pre-filter" these sequences so that we only remove those with Ns and perform no other fitlering.
+```{r, filterNsfqs, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, cache=TRUE}
+library("dada2")
+# Path to the processed fastq file directory:
+processedFastq <- paste(sharedPathReg, "processedFQ", sep = "")
+if(!dir.exists(processedFastq)) dir.create(processedFastq)
+
+# Path to fastq filtered for ambiguous bases (Ns):
+filtNsPath <- file.path(processedFastq, "A_removedAmbiguous")
+if(!dir.exists(filtNsPath)) dir.create(filtNsPath)
+
+# Define path and file names:
+metadataRegion$fwd   <- paste(metadataRegion$rawFastqPath, metadataRegion$rawR1, sep = "")
+metadataRegion$filtF <- file.path(filtNsPath, 
+                                  paste(metadataRegion$LibraryName, "_F.fastq.gz", sep = ""))
+metadataRegion$rev   <- paste(metadataRegion$rawFastqPath, metadataRegion$rawR2, sep = "")
+metadataRegion$filtR <- file.path(filtNsPath, 
+                                  paste(metadataRegion$LibraryName, "_R.fastq.gz", sep = ""))
+
+# Run DADA2's filterAndTrim function to remove sequences with ambiguous bases:
+dada2::filterAndTrim(metadataRegion$fwd, metadataRegion$filtF, 
+                     metadataRegion$rev, metadataRegion$filtR, maxN = 0, 
+                     multithread = TRUE, verbose = TRUE)
+```      
+
+Capture your forward and reverse COI primers, F230 with F230R_modN, for pre-2022 sets:
 ```{r, recordPrimers, echo=TRUE, eval=TRUE, include=TRUE, tidy=FALSE, cache=TRUE}
 fwdPrimer <- "GGTCAACAAATCATAAAGATATTGG"
 revPrimer <- "CTTATRTTRTTTATNCGNGGRAANGC"
@@ -225,44 +251,65 @@ PrimerHits <- function(primer, fn) {
     return(sum(nhits > 0))
 }
 ```
-Before checking our COI sequences for primers with cutadapt, we need to remove those sequences with ambiguous bases. Ambiguous bases (Ns) in the sequencing reads makes accurate mapping of short primer sequences difficult, so we "pre-filter" these sequences so that we only remove those with Ns and perform no other fitlering.
-```{r, filterNsfqs, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, cache=TRUE}
-library("dada2")
-# Path to the processed fastq file directory:
-processedFastq <- paste(sharedPathReg, "processedFQ", sep = "")
-if(!dir.exists(processedFastq)) dir.create(processedFastq)
-
-# Path to fastq filtered for ambiguous bases (Ns):
-filtNsPath <- file.path(processedFastq, "A_removedAmbiguous")
-if(!dir.exists(filtNsPath)) dir.create(filtNsPath)
-
-# Define path and file names:
-fwd   <- paste(metadataRegion$rawFastqPath, metadataRegion$rawR1, sep = "")
-filtF <- file.path(filtNsPath, 
-                   paste(metadataRegion$LibraryName, "_F.fastq.gz", sep = ""))
-rev   <- paste(metadataRegion$rawFastqPath, metadataRegion$rawR2, sep = "")
-filtR <- file.path(filtNsPath, 
-                   paste(metadataRegion$LibraryName, "_R.fastq.gz", sep = ""))
-
-# Run DADA2's filterAndTrim function to remove sequences with ambiguous bases:
-dada2::filterAndTrim(fwd, filtF, rev, filtR, maxN = 0, 
-                     multithread = TRUE, verbose = TRUE)
-```
 
 We can now check the N-filtered sequences of just one sample set for primer hits:
 ```{r, cntPrimerHits, echo=TRUE, eval=TRUE, tidy=FALSE, cache=TRUE, message=FALSE, warning=FALSE, comment=NA}
 library("ShortRead")
-rbind(FWD.ForwardReads = sapply(fwdOrients, PrimerHits, fn = filtF[1]),
-      FWD.ReverseReads = sapply(fwdOrients, PrimerHits, fn = filtR[1]), 
-      REV.ForwardReads = sapply(revOrients, PrimerHits, fn = filtF[1]), 
-      REV.ReverseReads = sapply(revOrients, PrimerHits, fn = filtR[1]))
+rbind(FWD.ForwardReads = sapply(fwdOrients, PrimerHits, fn = metadataRegion$filtF[1]),
+      FWD.ReverseReads = sapply(fwdOrients, PrimerHits, fn = metadataRegion$filtR[1]), 
+      REV.ForwardReads = sapply(revOrients, PrimerHits, fn = metadataRegion$filtF[1]), 
+      REV.ReverseReads = sapply(revOrients, PrimerHits, fn = metadataRegion$filtR[1]))
 ```
 As Expected, the vast majority of forward primer is found in its forward orientation, and in some of the reverse reads in its reverse-complement orientation (due to read-through when the COI region is short). Similarly, the reverse primer is found with its expected orientations. There are some where the primers appear in incorrect orientations and I need to better understand this.   
-     
+    
+
+Check out the forward and reverse COI primers for 2022 sequencing sets:
+```{r, recordPrimers, echo=TRUE, eval=TRUE, include=TRUE, tidy=FALSE, cache=TRUE}
+# COI-Invertebrates: Bfrag:
+# Befrag-BF: CCIGAYATRGCITTYCCICG = CCBGAYATRGCBTTYCCBCG
+# Befrag-R5-R: GTRATIGCICCIGCIARIAC = GTRATBGCBCCBGCBARBAC
+fwdPrimer <- "CCBGAYATRGCBTTYCCBCG"
+revPrimer <- "GTRATBGCBCCBGCBARBAC"
+
+library("Biostrings")
+AllOrients   <- function(primer) {
+     require(Biostrings)
+     dna     <- Biostrings::DNAString(primer)
+     orients <- c(Forward    = dna, 
+                  Complement = Biostrings::complement(dna), 
+                  Reverse    = Biostrings::reverse(dna), 
+                  RevComp    = Biostrings::reverseComplement(dna))
+    return(sapply(orients, toString))
+}
+fwdOrients <- AllOrients(fwdPrimer)
+revOrients <- AllOrients(revPrimer)
+fwdOrients
+library("ShortRead")
+PrimerHits <- function(primer, fn) {
+    nhits  <- Biostrings::vcountPattern(primer, ShortRead::sread(readFastq(fn)),
+                                        fixed = FALSE)
+    return(sum(nhits > 0))
+}
+library("ShortRead")
+rbind(FWD.ForwardReads = sapply(fwdOrients, PrimerHits, fn = metadataRegion$filtF[111]),
+      FWD.ReverseReads = sapply(fwdOrients, PrimerHits, fn = metadataRegion$filtR[111]), 
+      REV.ForwardReads = sapply(revOrients, PrimerHits, fn = metadataRegion$filtF[111]), 
+      REV.ReverseReads = sapply(revOrients, PrimerHits, fn = metadataRegion$filtR[111]))
+
+# set5 - invertebrates - bfrag:
+#                  Forward Complement Reverse RevComp
+# FWD.ForwardReads    6520          0       0     934
+# FWD.ReverseReads     952          0       0    6411
+# REV.ForwardReads    1934          0       0    6210
+# REV.ReverseReads    5966          0       0    1953
+# 
+# For this 2022 sequencing read set, row 111 in metadataRegion table, the most primer hits come with the invertebrates Bfrag primer set.
+```
+    
 Set up the paths and fastq file input and output names in preparation for running cutadapt. 
 \textbf{Note:} You may need to install cutadapt locally if it is not installed system wide. I chose to use conda to install it locally:
 ```{r, preCutadapt, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, cache=TRUE}
-cutadapt <- "/home/CFIA-ACIA/girouxeml/prog/anaconda3/envs/bio/bin/cutadapt"
+cutadapt <- "/isilon/cfia-ottawa-fallowfield/users/girouxeml/prog/anaconda3/envs/bio2022/bin/cutadapt"
 ```
 
 We can use the `system2` call to run shell commands directly from R
@@ -274,12 +321,20 @@ Create a directory for the cutadapted fastq files, only if it doesn't already ex
 ```{r, preCutadapt3, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, cache=TRUE}
 cutAdaptDir <- file.path(processedFastq, "B_cutadapt", sep = "")
 if(!dir.exists(cutAdaptDir)) dir.create(cutAdaptDir)
-
-cutFqs <- paste(cutAdaptDir, 
-                metadataRegion$LibraryName, "_Fcut.fastq.gz", sep = "")
-cutRqs <- paste(cutAdaptDir, 
-                metadataRegion$LibraryName, "_Rcut.fastq.gz", sep = "")
 ```
+    
+Add the paths for cutadapt-processed reads to the full table: 
+```{r}
+library("data.table")
+metadataRegion$cutFqs <- paste(cutAdaptDir, metadataRegion$LibraryName, "_Fcut.fastq.gz", sep = "")
+metadataRegion$cutRqs <- paste(cutAdaptDir, metadataRegion$LibraryName, "_Rcut.fastq.gz", sep = "")
+```
+    
+Split the metadataRegion table into one table for pre-2022 reads:
+```{r}
+metadataPre2022 <- metadataRegion[ which(metadataRegion$SeqPlate !=3)]
+```
+
 Now we can proceed to using cutadapt to remove primer sequences at the ends of our reads.     
 We'll use dada2:::rc()      
      
@@ -301,8 +356,13 @@ Parameter | Definition
 **-n:** | Number of times to trim when more than one adapter is present in a read
      
 Documentation for fine-tuning use of cutadapt is available at: https://cutadapt.readthedocs.io/en/v1.7.1/guide.html 
+We pass the primer set F230 with F230R_modN to cutadapt for trimming pre-2022 read sets.     
 ```{r, cutadapt, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, cache=TRUE}
 library("dada2")
+# Pre-2022 primer set:
+fwdPrimer <- "GGTCAACAAATCATAAAGATATTGG"
+revPrimer <- "CTTATRTTRTTTATNCGNGGRAANGC"
+
 fwdPrimerRC <- dada2:::rc(fwdPrimer)
 revPrimerRC <- dada2:::rc(revPrimer)
 # Trim fwdPrimer and the reverse-complement of the revPrimer off forward reads:
@@ -310,10 +370,10 @@ fwdFlags <- paste("-g", fwdPrimer, "-a", revPrimerRC)
 # Trim revPrimer and the reverse-complement of the fwdPrimer off reverse reads:
 revFlags <- paste("-G", revPrimer, "-A", fwdPrimerRC)
 # Run Cutadapt
-for(i in seq_along(metadataRegion$LibraryName)) {
+for(i in seq_along(metadataPre2022$LibraryName)) {
   system2(cutadapt, args = c(fwdFlags, revFlags, "-n", 2,
-                             "-o", cutFqs[i], "-p", cutRqs[i],
-                             filtF[i], filtR[i]))
+                             "-o", metadataPre2022$cutFqs[i], "-p", metadataPre2022$cutRqs[i],
+                             metadataPre2022$filtF[i], metadataPre2022$filtR[i]))
 }
 ```
 \textbf{Note:} There is a lot of output generated to the console when running cutadapt. One warning we may see often is about detection of incomplete adapter sequences:     
@@ -328,11 +388,50 @@ Because our DNA fragments are generated from amplicon sequences and are not rand
 As a sanity check, we will count the presence of primers in the first cutadapt-ed sample:
 ```{r, cntPrimerHits2, echo=-1, eval=TRUE, include=TRUE, tidy=FALSE, cache=TRUE, comment=NA}
 library("ShortRead")
-rbind(FWD.ForwardReads = sapply(fwdOrients, PrimerHits, fn = cutFqs[1]),
-      FWD.ReverseReads = sapply(fwdOrients, PrimerHits, fn = cutRqs[1]), 
-      REV.ForwardReads = sapply(revOrients, PrimerHits, fn = cutFqs[1]), 
-      REV.ReverseReads = sapply(revOrients, PrimerHits, fn = cutRqs[1]))
+rbind(FWD.ForwardReads = sapply(fwdOrients, PrimerHits, fn = metadataPre2022$cutFqs[1]),
+      FWD.ReverseReads = sapply(fwdOrients, PrimerHits, fn = metadataPre2022$cutRqs[1]), 
+      REV.ForwardReads = sapply(revOrients, PrimerHits, fn = metadataPre2022$cutFqs[1]), 
+      REV.ReverseReads = sapply(revOrients, PrimerHits, fn = metadataPre2022$cutRqs[1]))
 ```
+
+Repeat the cutadapt trimming for 2022 reads:    
+Split the metadataRegion to get only 2022 reads:
+```{r}
+library("data.table")
+metadata2022 <- metadataRegion[ which(metadataRegion$SeqPlate==3)]
+
+# Set the other primer set Bfrag:
+fwdPrimer <- "CCBGAYATRGCBTTYCCBCG"
+revPrimer <- "GTRATBGCBCCBGCBARBAC"
+
+library("dada2")
+fwdPrimerRC <- dada2:::rc(fwdPrimer)
+revPrimerRC <- dada2:::rc(revPrimer)
+# Trim fwdPrimer and the reverse-complement of the revPrimer off forward reads:
+fwdFlags <- paste("-g", fwdPrimer, "-a", revPrimerRC)
+# Trim revPrimer and the reverse-complement of the fwdPrimer off reverse reads:
+revFlags <- paste("-G", revPrimer, "-A", fwdPrimerRC)
+# Run Cutadapt
+for(i in seq_along(metadata2022$LibraryName)) {
+  system2(cutadapt, args = c(fwdFlags, revFlags, "-n", 2,
+                             "-o", metadata2022$cutFqs[i], "-p", metadata2022$cutRqs[i],
+                             metadata2022$filtF[i], metadata2022$filtR[i]))
+}
+
+# Sanity check:
+library("ShortRead")
+rbind(FWD.ForwardReads = sapply(fwdOrients, PrimerHits, fn = metadata2022$cutFqs[1]),
+      FWD.ReverseReads = sapply(fwdOrients, PrimerHits, fn = metadata2022$cutRqs[1]), 
+      REV.ForwardReads = sapply(revOrients, PrimerHits, fn = metadata2022$cutFqs[1]), 
+      REV.ReverseReads = sapply(revOrients, PrimerHits, fn = metadata2022$cutRqs[1]))
+```
+Combine the split tables back into a full metadata table:
+```{r}
+library("data.table")
+l <- list(metadataPre2022, metadata2022)
+metadataFull <- rbindlist(l, use.names=TRUE)
+```
+
 
 3. filterAndTrimming. Raw read processing.          
 If we're going to spend anytime optimizing steps during procesing, it should be on filterring and trimming. Likewise, while we may see a big loss of reads in this step, outside of this step we should see no major loss of reads.     
@@ -348,10 +447,10 @@ filtPathFinal <- file.path(processedFastq, "C_finalProcessed")
 if(!dir.exists(filtPathFinal)) dir.create(filtPathFinal)
 
 # Create output filenames for the final filtered and trimmed fastq files:
-filtFwd <- paste(filtPathFinal, "/", 
-                 metadataRegion$LibraryName, "_F_filt.fastq.gz", sep = "")
-filtRev <- paste(filtPathFinal, "/",
-                 metadataRegion$LibraryName, "_R_filt.fastq.gz", sep = "")
+metadataFull$filtFwd <- paste(filtPathFinal, "/", 
+                              metadataFull$LibraryName, "_F_filt.fastq.gz", sep = "")
+metadataFull$filtRev <- paste(filtPathFinal, "/",
+                              metadataFull$LibraryName, "_R_filt.fastq.gz", sep = "")
 ```
 
 For this dataset, we will use standard filtering paraments: maxN=0 (DADA2 requires sequences contain no Ns), truncQ = 2,  rm.phix = TRUE and maxEE=2. The maxEE parameter sets the maximum number of “expected errors” allowed in a read, which is a better filter than simply averaging quality scores. Note: We enforce a minLen here, to get rid of spurious very low-length sequences.
@@ -359,7 +458,7 @@ For this dataset, we will use standard filtering paraments: maxN=0 (DADA2 requir
 Run filterAndTrim using cutadapt-ed fastq files as input:      
 ```{r, filterAndTrimming2, echo=TRUE, eval=FALSE, include=TRUE, tidy=FALSE, linewidth=80, cache=TRUE}
 library("dada2")
-trimOut <- dada2::filterAndTrim(cutFqs, filtFwd, cutRqs, filtRev,
+trimOut <- dada2::filterAndTrim(metadataFull$cutFqs, metadataFull$filtFwd, metadataFull$cutRqs, metadataFull$filtRev,
                                 maxN = 0, maxEE = c(3,3), truncQ = 2, 
                                 minLen = 50, rm.phix = TRUE, compress = TRUE,
                                 matchIDs = TRUE, multithread = TRUE, verbose = TRUE)
@@ -394,12 +493,12 @@ https://rdrr.io/bioc/dada2/man/filterAndTrim.html
 library("dada2")
 library("ggplot2")
 plotQfwd <- dada2::plotQualityProfile(paste(filtPathFinal, "/", 
-                                            metadataRegion$LibraryName[1:2], 
+                                            metadataFull$LibraryName[1:2], 
                                             "_F_filt.fastq.gz", sep = "")) +
   ggplot2::ggtitle("Quality Plot of Two Samples of Processed Forward Reads") +
   ggplot2::theme(plot.title = element_text(hjust = 0.5))
 plotQrev <- dada2::plotQualityProfile(paste(filtPathFinal, "/", 
-                                            metadataRegion$LibraryName[1:2],
+                                            metadataFull$LibraryName[1:2],
                                             "_R_filt.fastq.gz", sep = "")) +
   ggplot2::ggtitle("Quality Plot of Two Samples of Processed Reverse Reads") +
   ggplot2::theme(plot.title = element_text(hjust = 0.5))
@@ -435,10 +534,10 @@ keepTrim <- trimOut[,"reads.out"] > 20 # Or other cutoff
 #names <- which(keepTrim == TRUE, arr.ind = TRUE)
 
 filtFs <- file.path(filtPathFinal, 
-                    paste(metadataRegion$LibraryName, 
+                    paste(metadataFull$LibraryName, 
                           "_F_filt.fastq.gz", sep = ""))[keepTrim]
 filtRs <- file.path(filtPathFinal, 
-                    paste(metadataRegion$LibraryName, 
+                    paste(metadataFull$LibraryName, 
                           "_R_filt.fastq.gz", sep = ""))[keepTrim]
 
 filtNames <- na.omit(basename(filtFs)[keepTrim]) # Using na.omit removes those that failed the minimum read number after filtering.
@@ -449,20 +548,21 @@ Run the `keepTrimmed2` chunk. We've updated our list of fastq file names, but we
 \textbf{Note:} With `data.table` and `keys` look-up, `.()` is an alias to `list()`, which is the `filtNames` we set in the previous chunk.
 ```{r, keepTrimmed2, include=TRUE, echo=TRUE, eval=FALSE, message=FALSE, cache=TRUE, tidy=FALSE}
 library("data.table")
-data.table::setkey(metadataRegion, LibraryName)
-metadatafilt <- metadataRegion[.(filtNames)] 
+data.table::setkey(metadataFull, LibraryName)
+metadatafilt <- metadataFull[.(filtNames)] 
 metadatafilt$filtFwd <- paste(filtPathFinal, "/", metadatafilt$LibraryName, 
                               "_F_filt.fastq.gz", sep = "")
 metadatafilt$filtRev <- paste(filtPathFinal, "/", metadatafilt$LibraryName,
                               "_R_filt.fastq.gz", sep = "")
 ```
 
-6. splitRunsMetadata. No need for this step since all COI sequencing libraries were sequenced on the same run.
+6. splitRunsMetadata. Pre-2022 and 2022 COI sequencing libraries make up 2 separate sequencing runs.
 ```{r, splitRunsMetadata, include=TRUE, echo=TRUE, eval=FALSE, message=FALSE, cache=TRUE}
 library("data.table")
 data.table::setkey(metadatafilt, "SeqPlate")
 run <- unique(metadatafilt$SeqPlate)
-metadatafiltPlate1 <- metadatafilt[run]
+metadatafiltPlate1 <- metadatafilt[run[2]] #notRecorded set = pre-2022
+metadatafiltPlate2 <- metadatafilt[run[1]] #3 = 2022 runs
 ```
 
 ```{r, saveImage3, eval=FALSE, echo=TRUE, include=TRUE}
