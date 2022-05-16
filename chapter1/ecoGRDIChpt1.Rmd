@@ -192,15 +192,19 @@ metadataCOI <- metadata["COI"]
 metadataITS <- metadata["ITS"]
 ```
 Save the image and load this at the beginning of each amplicon region processing and analysis workflow:
+To Emily: Hey , i left the base code commented out , incase you found that the function is not working as intended. 
 ```{r, saveBaseImage, echo=TRUE, eval=TRUE, include=TRUE, results='hold'}
-imageDirPath <- paste("/isilon/cfia-ottawa-fallowfield/users/girouxeml", userAccount, "GitHub_Repos/r_environments/ecobiomics", sep = "/")
-if(!dir.exists(imageDirPath)) dir.create(imageDirPath)
 
-# Specify an image name for this chapter:
-startUpImage <- "ecobiomics_StartUp.RData"
+# imageDirPath <- paste("/isilon/cfia-ottawa-fallowfield/users/girouxeml", userAccount, "GitHub_Repos/r_environments/ecobiomics", sep = "/")
+# if(!dir.exists(imageDirPath)) dir.create(imageDirPath)
+# 
+# # Specify an image name for this chapter:
+# startUpImage <- "ecobiomics_StartUp.RData"
+# 
+# # Save this chapter's image:
+# save.image(paste(imageDirPath, startUpImage, sep = "/"))
 
-# Save this chapter's image:
-save.image(paste(imageDirPath, startUpImage, sep = "/"))
+savedImage <- saveImage(userAccount)
 ```
 
 
